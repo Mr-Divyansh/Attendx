@@ -1,0 +1,236 @@
+import { cookies } from 'next/headers'
+import { db } from './db'
+import crypto from 'crypto'
+
+// ───────────────────────────────────────────────────────────
+// AttendX — Auth library (session/cookie based, bcrypt-hashed)
+// Mirrors PHP session + role-based access control from the spec.
+// ───────────────────────────────────────────────────────────
+
+const SESSION_COOKIE = 'attendx_session'
+const SESSION_TTL = 60 * 60 * 24 * 7 // 7 days
+
+export type SessionUser = {
+  id: string
+  email: string
+  role: 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PERSONAL'
+  name: string
+  // college extras
+  studentId?: string
+  teacherId?: string
+  adminId?: string
+  rollNo?: string
+  semesterId?: string | null
+  sectionId?: string | null
+  // personal extras
+  username?: string
+  avatarUrl?: string | null
+}
+
+type SessionPayload = {
+  id: string
+  role: SessionUser['role']
+  issuedAt: number
+  expiresAt: number
+  // a simple HMAC signature to prevent tampering
+  sig: string
+}
+
+const SECRET = process.env.ATTENDX_SECRET || 'attendx-dev-secret-change-me'
+
+function sign(data: string): string {
+  return crypto.createHmac('sha256', SECRET).update(data).digest('hex')
+}
+
+function encodePayload(payload: Omit<SessionPayload, 'sig'>): string {
+  const json = JSON.stringify(payload)
+  const b64 = Buffer.from(json).toString('base64url')
+  const sig = sign(b64)
+  return `${b64}.${sig}`
+}
+
+function decodePayload(token: string): Omit<SessionPayload, 'sig'> | null {
+  const [b64, sig] = token.split('.')
+  if (!b64 || !sig) return null
+  if (sign(b64) !== sig) return null // tampered
+  try {
+    const json = Buffer.from(b64, 'base64url').toString('utf8')
+    const payload = JSON.parse(json) as SessionPayload
+    if (Date.now() > payload.expiresAt) return null
+    const { sig: _sig, ...rest } = payload
+    return rest
+  } catch {
+    return null
+  }
+}
+
+/** Create a session cookie for a college user (regenerate id on login). */
+export async function createCollegeSession(user: {
+  id: string
+  email: string
+  role: SessionUser['role']
+}) {
+  const token = encodePayload({
+    id: user.id,
+    role: user.role,
+    issuedAt: Date.now(),
+    expiresAt: Date.now() + SESSION_TTL * 1000,
+  })
+  const store = await cookies()
+  store.set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: SESSION_TTL,
+  })
+}
+
+/** Create a session cookie for a personal-mode user. */
+export async function createPersonalSession(user: { id: string }) {
+  const token = encodePayload({
+    id: user.id,
+    role: 'PERSONAL',
+    issuedAt: Date.now(),
+    expiresAt: Date.now() + SESSION_TTL * 1000,
+  })
+  const store = await cookies()
+  store.set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: SESSION_TTL,
+  })
+}
+
+export async function destroySession() {
+  const store = await cookies()
+  store.delete(SESSION_COOKIE)
+}
+
+/** Returns the current session user, or null. Resolves role-specific profile. */
+export async function getSession(): Promise<SessionUser | null> {
+  const store = await cookies()
+  const token = store.get(SESSION_COOKIE)?.value
+  if (!token) return null
+  const payload = decodePayload(token)
+  if (!payload) return null
+
+  if (payload.role === 'PERSONAL') {
+    const pu = await db.personalUser.findUnique({
+      where: { id: payload.id },
+      include: { settings: true },
+    })
+    if (!pu) return null
+    return {
+      id: pu.id,
+      email: pu.username,
+      role: 'PERSONAL',
+      name: pu.fullName,
+      username: pu.username,
+      avatarUrl: pu.avatarUrl,
+    }
+  }
+
+  // College user
+  const u = await db.user.findUnique({
+    where: { id: payload.id },
+    include: { admin: true, teacher: true, student: true },
+  })
+  if (!u) return null
+  const base: SessionUser = {
+    id: u.id,
+    email: u.email,
+    role: u.role,
+    name:
+      u.admin?.fullName || u.teacher?.fullName || u.student?.fullName || u.email,
+  }
+  if (u.admin) base.adminId = u.admin.id
+  if (u.teacher) base.teacherId = u.teacher.id
+  if (u.student) {
+    base.studentId = u.student.id
+    base.rollNo = u.student.rollNo
+    base.semesterId = u.student.semesterId
+    base.sectionId = u.student.sectionId
+  }
+  return base
+}
+
+/** Require a specific role; throws 401-style sentinel if missing. */
+export async function requireRole(
+  ...roles: SessionUser['role'][]
+): Promise<SessionUser> {
+  const session = await getSession()
+  if (!session || !roles.includes(session.role)) {
+    throw new AuthError('Unauthorized', 401)
+  }
+  return session
+}
+
+export class AuthError extends Error {
+  status: number
+  constructor(message: string, status = 400) {
+    super(message)
+    this.status = status
+  }
+}
+
+// ── Password hashing (bcrypt-equivalent via node's scrypt + salt) ──
+// We use scrypt (available in Node 18+) as a bcrypt stand-in for hashing.
+export function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex')
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex')
+  return `scrypt$${salt}$${hash}`
+}
+
+export function verifyPassword(password: string, stored: string): boolean {
+  const parts = stored.split('$')
+  if (parts.length !== 3 || parts[0] !== 'scrypt') return false
+  const salt = parts[1]
+  const hash = parts[2]
+  const test = crypto.scryptSync(password, salt, 64).toString('hex')
+  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(test, 'hex'))
+}
+
+// ── CSRF token (per-session, validated on POST mutations) ──
+const CSRF_COOKIE = 'attendx_csrf'
+
+export async function issueCsrfToken(): Promise<string> {
+  const token = crypto.randomBytes(24).toString('hex')
+  const store = await cookies()
+  store.set(CSRF_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: SESSION_TTL,
+  })
+  return token
+}
+
+export async function validateCsrfToken(headerToken?: string): Promise<boolean> {
+  const store = await cookies()
+  const cookieToken = store.get(CSRF_COOKIE)?.value
+  if (!cookieToken || !headerToken) return false
+  return crypto.timingSafeEqual(
+    Buffer.from(cookieToken, 'hex'),
+    Buffer.from(headerToken, 'hex')
+  )
+}
+
+/** Helper for API routes: parse JSON body safely. */
+export async function parseBody<T = unknown>(req: Request): Promise<T> {
+  try {
+    return (await req.json()) as T
+  } catch {
+    throw new AuthError('Invalid JSON body', 400)
+  }
+}
+
+/** Standard JSON response helper. */
+export function json(data: unknown, status = 200) {
+  return Response.json(data, { status })
+}
+
+/** Error response helper. */
+export function errorResponse(message: string, status = 400) {
+  return Response.json({ error: message }, { status })
+}

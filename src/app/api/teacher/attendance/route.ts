@@ -1,0 +1,183 @@
+import { NextRequest } from 'next/server'
+import { Prisma } from '@prisma/client'
+import { db } from '@/lib/db'
+import { requireRole, parseBody, json, errorResponse, AuthError } from '@/lib/auth'
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function getTodayStr() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate()
+  ).padStart(2, '0')}`
+}
+
+function parseLocalDate(s: string): Date | null {
+  const d = new Date(s + 'T00:00:00')
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+// GET /api/teacher/attendance?subjectId=&date=
+// Returns { records: [{studentId, status, period}], periods: [{period, startTime, endTime}], editable, sectionId }
+// - periods: timetable slots for this subject + the section it belongs to + the weekday of `date`.
+// - records: existing attendance rows for this subject + date (all periods).
+// - editable: whether the date falls within the 7-day allowed edit window.
+export async function GET(req: NextRequest) {
+  try {
+    const session = await requireRole('TEACHER')
+    const teacherId = session.teacherId!
+    const sp = req.nextUrl.searchParams
+    const subjectId = sp.get('subjectId')
+    const date = sp.get('date')
+    if (!subjectId || !date) {
+      return errorResponse('subjectId and date are required', 400)
+    }
+    const submitted = parseLocalDate(date)
+    if (!submitted) return errorResponse('Invalid date', 400)
+
+    const subject = await db.subject.findUnique({
+      where: { id: subjectId },
+      select: { id: true, sectionId: true, teacherId: true },
+    })
+    if (!subject || subject.teacherId !== teacherId) {
+      return errorResponse('Subject not found for this teacher', 404)
+    }
+
+    const dayName = DAY_NAMES[submitted.getDay()]
+    const periods = await db.timetable.findMany({
+      where: {
+        teacherId,
+        subjectId,
+        sectionId: subject.sectionId ?? undefined,
+        day: dayName,
+      },
+      select: { period: true, startTime: true, endTime: true },
+      orderBy: { period: 'asc' },
+    })
+
+    const records = await db.attendance.findMany({
+      where: { subjectId, date },
+      select: { studentId: true, status: true, period: true },
+    })
+
+    const today = parseLocalDate(getTodayStr())!
+    const minDate = new Date(today)
+    minDate.setDate(minDate.getDate() - 6) // last 7 days inclusive
+    const editable = submitted <= today && submitted >= minDate
+
+    return json({ records, periods, editable, sectionId: subject.sectionId })
+  } catch (e) {
+    if (e instanceof AuthError) return errorResponse(e.message, e.status)
+    throw e
+  }
+}
+
+// POST /api/teacher/attendance
+// body: { subjectId, date, period, entries: [{ studentId, status }] }
+// Upserts attendance for each entry (findExisting + update/create, because the
+// compound unique key includes nullable fields and cannot be used in whereUnique).
+// Sets markedById = session.teacherId. Enforces the 7-day edit window.
+export async function POST(req: NextRequest) {
+  try {
+    const session = await requireRole('TEACHER')
+    const teacherId = session.teacherId!
+    const body = await parseBody<{
+      subjectId?: string
+      date?: string
+      period?: number
+      entries?: { studentId: string; status: string }[]
+    }>(req)
+
+    const { subjectId, date, period, entries } = body
+    if (!subjectId || !date || typeof period !== 'number' || !Array.isArray(entries)) {
+      return errorResponse('subjectId, date, period and entries[] are required', 400)
+    }
+    const submitted = parseLocalDate(date)
+    if (!submitted) return errorResponse('Invalid date', 400)
+
+    // 7-day edit window (also reject future dates)
+    const today = parseLocalDate(getTodayStr())!
+    const minDate = new Date(today)
+    minDate.setDate(minDate.getDate() - 6)
+    if (submitted > today) {
+      return errorResponse('Cannot mark attendance for future dates', 400)
+    }
+    if (submitted < minDate) {
+      return errorResponse('Cannot edit attendance older than 7 days', 403)
+    }
+
+    const validStatuses = new Set(['present', 'absent', 'late'])
+    for (const e of entries) {
+      if (!e.studentId || !validStatuses.has(e.status)) {
+        return errorResponse('Invalid entry payload', 400)
+      }
+    }
+
+    const subject = await db.subject.findUnique({
+      where: { id: subjectId },
+      select: { teacherId: true, sectionId: true },
+    })
+    if (!subject || subject.teacherId !== teacherId) {
+      return errorResponse('Subject not found for this teacher', 404)
+    }
+
+    // Verify the period exists in this teacher's timetable for that weekday
+    const dayName = DAY_NAMES[submitted.getDay()]
+    const slot = await db.timetable.findFirst({
+      where: {
+        teacherId,
+        subjectId,
+        sectionId: subject.sectionId ?? undefined,
+        day: dayName,
+        period,
+      },
+      select: { id: true },
+    })
+    if (!slot) {
+      return errorResponse('No timetable slot for this subject/period/day', 400)
+    }
+
+    // Only allow students from the subject's section
+    const studentIds = entries.map((e) => e.studentId)
+    const validStudents = await db.student.findMany({
+      where: { id: { in: studentIds }, sectionId: subject.sectionId ?? undefined },
+      select: { id: true },
+    })
+    const validStudentIds = new Set(validStudents.map((s) => s.id))
+    const cleanEntries = entries.filter((e) => validStudentIds.has(e.studentId))
+
+    // Fetch existing marks for this subject+date+period so we can update in place
+    const existing = await db.attendance.findMany({
+      where: { subjectId, date, period },
+      select: { id: true, studentId: true },
+    })
+    const existingMap = new Map(existing.map((r) => [r.studentId, r.id]))
+
+    const ops: Prisma.PrismaPromise<unknown>[] = cleanEntries.map((e) => {
+      const existingId = existingMap.get(e.studentId)
+      if (existingId) {
+        return db.attendance.update({
+          where: { id: existingId },
+          data: { status: e.status, markedById: teacherId, markedAt: new Date() },
+        })
+      }
+      return db.attendance.create({
+        data: {
+          studentId: e.studentId,
+          subjectId,
+          date,
+          period,
+          status: e.status,
+          markedById: teacherId,
+        },
+      })
+    })
+
+    if (ops.length > 0) await db.$transaction(ops)
+
+    return json({ saved: cleanEntries.length })
+  } catch (e) {
+    if (e instanceof AuthError) return errorResponse(e.message, e.status)
+    throw e
+  }
+}
