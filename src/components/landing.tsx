@@ -29,7 +29,6 @@ const roleCards: {
 }[] = [
   {
     role: 'STUDENT',
-git init
     title: 'Student',
     desc: 'Continue with Google and view your attendance',
     icon: GraduationCap,
