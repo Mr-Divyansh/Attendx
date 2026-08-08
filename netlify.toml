@@ -1,0 +1,11 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Prisma needs its query engine generated for Netlify's Linux build environment.
+# `postinstall` (added to package.json) handles this automatically on every install,
+# so nothing extra is needed here — just make sure DATABASE_URL and ATTENDX_SECRET
+# are set in Site settings → Environment variables before deploying.

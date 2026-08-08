@@ -1,6 +1,13 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError } from '@/lib/auth'
+import {
+  requireRole,
+  parseBody,
+  json,
+  errorResponse,
+  AuthError,
+  validateCsrfToken,
+} from '@/lib/auth'
 
 type Entry = { period: number; status: 'present' | 'absent'; subjectName: string }
 
@@ -53,6 +60,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('PERSONAL')
+    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
+      throw new AuthError('Invalid or missing CSRF token', 403)
+    }
     const body = await parseBody<{ date?: string; entries?: Entry[] }>(req)
 
     if (!body.date || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {

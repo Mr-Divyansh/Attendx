@@ -6,6 +6,7 @@ import {
   json,
   errorResponse,
   AuthError,
+  validateCsrfToken,
 } from '@/lib/auth'
 
 // GET /api/admin/departments
@@ -38,6 +39,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     await requireRole('ADMIN')
+    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
+      throw new AuthError('Invalid or missing CSRF token', 403)
+    }
     const body = await parseBody<{ name?: string; code?: string }>(req)
     const name = body.name?.trim()
     const code = body.code?.trim().toUpperCase()

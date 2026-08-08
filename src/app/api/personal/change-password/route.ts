@@ -8,12 +8,16 @@ import {
   verifyPassword,
   hashPassword,
   AuthError,
+  validateCsrfToken,
 } from '@/lib/auth'
 
 // POST /api/personal/change-password — verify current, set new
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('PERSONAL')
+    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
+      throw new AuthError('Invalid or missing CSRF token', 403)
+    }
     const { currentPassword, newPassword } = await parseBody<{
       currentPassword?: string
       newPassword?: string

@@ -7,6 +7,7 @@ import {
   errorResponse,
   hashPassword,
   AuthError,
+  validateCsrfToken,
 } from '@/lib/auth'
 
 // PUT /api/admin/students/[id] — update a student (and optionally their email/password).
@@ -16,6 +17,9 @@ export async function PUT(
 ) {
   try {
     await requireRole('ADMIN')
+    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
+      throw new AuthError('Invalid or missing CSRF token', 403)
+    }
     const { id } = await params
     const body = await parseBody<{
       fullName?: string
@@ -95,11 +99,14 @@ export async function PUT(
 
 // DELETE /api/admin/students/[id] — remove the Student profile and its User account.
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireRole('ADMIN')
+    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
+      throw new AuthError('Invalid or missing CSRF token', 403)
+    }
     const { id } = await params
     const student = await db.student.findUnique({ where: { id } })
     if (!student) return errorResponse('Student not found', 404)

@@ -7,6 +7,7 @@ import {
   json,
   errorResponse,
   issueCsrfToken,
+  checkRateLimit,
 } from '@/lib/auth'
 
 // POST /api/auth/login — college login (email + password + role)
@@ -19,6 +20,11 @@ export async function POST(req: NextRequest) {
 
   if (!email || !password || !role) {
     return errorResponse('Email, password and role are required', 400)
+  }
+
+  const ip = req.headers.get('x-forwarded-for') || 'unknown'
+  if (!checkRateLimit(`login:${ip}:${email.toLowerCase()}`)) {
+    return errorResponse('Too many login attempts. Please try again in a few minutes.', 429)
   }
 
   const user = await db.user.findUnique({

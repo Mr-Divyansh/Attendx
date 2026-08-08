@@ -243,15 +243,15 @@ export function Landing() {
             </span>
           </div>
           <nav className="flex items-center gap-5 text-sm text-muted-foreground">
-            <a className="hover:text-foreground transition-colors cursor-pointer">
+            <button type="button" className="hover:text-foreground transition-colors cursor-pointer">
               About
-            </a>
-            <a className="hover:text-foreground transition-colors cursor-pointer">
+            </button>
+            <button type="button" className="hover:text-foreground transition-colors cursor-pointer">
               Contact
-            </a>
-            <a className="hover:text-foreground transition-colors cursor-pointer">
+            </button>
+            <button type="button" className="hover:text-foreground transition-colors cursor-pointer">
               Privacy Policy
-            </a>
+            </button>
           </nav>
         </div>
       </footer>

@@ -1,4 +1,7 @@
-import { destroySession, json } from '@/lib/auth'
+import {
+  destroySession,
+  json,
+} from '@/lib/auth'
 
 // POST /api/auth/logout — destroy session
 export async function POST() {

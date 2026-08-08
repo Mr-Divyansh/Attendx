@@ -38,6 +38,17 @@ type SessionPayload = {
 
 const SECRET = process.env.ATTENDX_SECRET || 'attendx-dev-secret-change-me'
 
+if (process.env.NODE_ENV === 'production' && !process.env.ATTENDX_SECRET) {
+  // The fallback secret is public (it's in this source file), so if it's ever used in
+  // production, anyone can forge a valid session cookie for any user. Fail loudly instead
+  // of silently shipping an insecure deployment.
+  throw new Error(
+    'ATTENDX_SECRET environment variable is not set. Set it in your hosting provider\'s ' +
+      'environment variables (Netlify: Site settings → Environment variables) to a long ' +
+      'random string before deploying to production.'
+  )
+}
+
 function sign(data: string): string {
   return crypto.createHmac('sha256', SECRET).update(data).digest('hex')
 }
@@ -80,6 +91,7 @@ export async function createCollegeSession(user: {
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: SESSION_TTL,
   })
@@ -97,6 +109,7 @@ export async function createPersonalSession(user: { id: string }) {
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: SESSION_TTL,
   })
@@ -200,6 +213,7 @@ export async function issueCsrfToken(): Promise<string> {
   store.set(CSRF_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: SESSION_TTL,
   })
@@ -214,6 +228,27 @@ export async function validateCsrfToken(headerToken?: string): Promise<boolean> 
     Buffer.from(cookieToken, 'hex'),
     Buffer.from(headerToken, 'hex')
   )
+}
+
+// ── Basic rate limiting for auth endpoints (login/register) ──
+// This is a simple in-memory limiter: 10 attempts per key per 10 minutes. It resets
+// on server restart / cold start, so it's not bulletproof on serverless, but it stops
+// casual scripted brute-forcing of passwords, which the app had zero protection
+// against before this.
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000
+const RATE_LIMIT_MAX = 10
+const attempts = new Map<string, { count: number; resetAt: number }>()
+
+export function checkRateLimit(key: string): boolean {
+  const now = Date.now()
+  const entry = attempts.get(key)
+  if (!entry || now > entry.resetAt) {
+    attempts.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
+    return true
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return false
+  entry.count += 1
+  return true
 }
 
 /** Helper for API routes: parse JSON body safely. */

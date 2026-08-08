@@ -6,6 +6,7 @@ import {
   json,
   errorResponse,
   AuthError,
+  validateCsrfToken,
 } from '@/lib/auth'
 
 // PUT /api/admin/subjects/[id] — update subject fields.
@@ -15,6 +16,9 @@ export async function PUT(
 ) {
   try {
     await requireRole('ADMIN')
+    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
+      throw new AuthError('Invalid or missing CSRF token', 403)
+    }
     const { id } = await params
     const body = await parseBody<{
       code?: string
@@ -74,11 +78,14 @@ export async function PUT(
 
 // DELETE /api/admin/subjects/[id]
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireRole('ADMIN')
+    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
+      throw new AuthError('Invalid or missing CSRF token', 403)
+    }
     const { id } = await params
     await db.subject.delete({ where: { id } })
     return json({ ok: true })

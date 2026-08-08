@@ -1,6 +1,13 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError } from '@/lib/auth'
+import {
+  requireRole,
+  parseBody,
+  json,
+  errorResponse,
+  AuthError,
+  validateCsrfToken,
+} from '@/lib/auth'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -8,6 +15,9 @@ type Ctx = { params: Promise<{ id: string }> }
 export async function PUT(req: NextRequest, ctx: Ctx) {
   try {
     const session = await requireRole('PERSONAL')
+    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
+      throw new AuthError('Invalid or missing CSRF token', 403)
+    }
     const { id } = await ctx.params
 
     const existing = await db.personalTimetable.findUnique({ where: { id } })
@@ -49,9 +59,12 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 }
 
 // DELETE /api/personal/timetable/[id]
-export async function DELETE(_req: NextRequest, ctx: Ctx) {
+export async function DELETE(req: NextRequest, ctx: Ctx) {
   try {
     const session = await requireRole('PERSONAL')
+    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
+      throw new AuthError('Invalid or missing CSRF token', 403)
+    }
     const { id } = await ctx.params
 
     const existing = await db.personalTimetable.findUnique({ where: { id } })

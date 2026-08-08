@@ -1,6 +1,13 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError } from '@/lib/auth'
+import {
+  requireRole,
+  parseBody,
+  json,
+  errorResponse,
+  AuthError,
+  validateCsrfToken,
+} from '@/lib/auth'
 
 const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -40,6 +47,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('PERSONAL')
+    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
+      throw new AuthError('Invalid or missing CSRF token', 403)
+    }
     const body = await parseBody<{
       day?: string
       period?: number

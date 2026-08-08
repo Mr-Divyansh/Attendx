@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useAuth, type Role } from '@/stores/auth-store'
+import { useAuth, type Role, type SessionUser } from '@/stores/auth-store'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -32,7 +32,7 @@ export function AuthModal() {
   // Personal mode uses tabs: login vs register
   const isPersonal = loginRole === 'PERSONAL'
 
-  const close = () => openLogin(null as unknown as Role) // reset
+  const close = () => openLogin(null) // reset
   const reset = () => {
     setEmail(''); setPassword(''); setUsername(''); setFullName(''); setConfirm('')
   }
@@ -42,7 +42,7 @@ export function AuthModal() {
     if (!loginRole || loginRole === 'PERSONAL') return
     setBusy(true)
     try {
-      const data = await apiFetch<{ user: any; csrfToken: string }>('/api/auth/login', {
+      const data = await apiFetch<{ user: SessionUser; csrfToken: string }>('/api/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password, role: loginRole }),
       })
@@ -62,7 +62,7 @@ export function AuthModal() {
     e.preventDefault()
     setBusy(true)
     try {
-      const data = await apiFetch<{ user: any; csrfToken: string }>('/api/auth/login-personal', {
+      const data = await apiFetch<{ user: SessionUser; csrfToken: string }>('/api/auth/login-personal', {
         method: 'POST',
         body: JSON.stringify({ username, password }),
       })
@@ -82,7 +82,7 @@ export function AuthModal() {
     e.preventDefault()
     setBusy(true)
     try {
-      const data = await apiFetch<{ user: any; csrfToken: string }>('/api/auth/register', {
+      const data = await apiFetch<{ user: SessionUser; csrfToken: string }>('/api/auth/register', {
         method: 'POST',
         body: JSON.stringify({ fullName, username, password, confirm }),
       })
@@ -146,10 +146,12 @@ export function AuthModal() {
               {busy && <Loader2 className="size-4 mr-2 animate-spin" />}
               Sign in as {meta.label}
             </Button>
-            <p className="text-xs text-muted-foreground text-center pt-1">
-              Demo: <span className="font-mono">{meta.hint}</span> /{' '}
-              <span className="font-mono">{meta.demo}</span>
-            </p>
+            {process.env.NODE_ENV !== 'production' && (
+              <p className="text-xs text-muted-foreground text-center pt-1">
+                Demo (dev only): <span className="font-mono">{meta.hint}</span> /{' '}
+                <span className="font-mono">{meta.demo}</span>
+              </p>
+            )}
           </form>
         ) : (
           <Tabs defaultValue="login" className="w-full">
@@ -185,10 +187,12 @@ export function AuthModal() {
                   {busy && <Loader2 className="size-4 mr-2 animate-spin" />}
                   Sign in
                 </Button>
-                <p className="text-xs text-muted-foreground text-center pt-1">
-                  Demo: <span className="font-mono">riya</span> /{' '}
-                  <span className="font-mono">personal123</span>
-                </p>
+                {process.env.NODE_ENV !== 'production' && (
+                  <p className="text-xs text-muted-foreground text-center pt-1">
+                    Demo (dev only): <span className="font-mono">riya</span> /{' '}
+                    <span className="font-mono">personal123</span>
+                  </p>
+                )}
               </form>
             </TabsContent>
             <TabsContent value="register">

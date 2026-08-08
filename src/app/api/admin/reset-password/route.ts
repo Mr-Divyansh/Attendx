@@ -7,12 +7,16 @@ import {
   errorResponse,
   hashPassword,
   AuthError,
+  validateCsrfToken,
 } from '@/lib/auth'
 
 // POST /api/admin/reset-password — admin resets any user's password.
 export async function POST(req: NextRequest) {
   try {
     await requireRole('ADMIN')
+    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
+      throw new AuthError('Invalid or missing CSRF token', 403)
+    }
     const body = await parseBody<{ userId?: string; newPassword?: string }>(req)
     const userId = body.userId
     const newPassword = body.newPassword

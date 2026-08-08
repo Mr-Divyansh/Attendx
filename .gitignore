@@ -1,0 +1,28 @@
+# dependencies
+/node_modules
+
+# next.js build output
+/.next/
+/out/
+
+# env files (never commit real secrets)
+.env
+.env.local
+.env.*.local
+
+# logs
+*.log
+dev.log
+server.log
+dryrun.log
+
+# local sqlite db (if ever used locally)
+*.db
+*.db-journal
+prisma/dev.db*
+
+# misc
+.DS_Store
+*.pem
+.vercel
+.netlify

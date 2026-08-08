@@ -1,14 +1,23 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, json, errorResponse, AuthError } from '@/lib/auth'
+import {
+  requireRole,
+  json,
+  errorResponse,
+  AuthError,
+  validateCsrfToken,
+} from '@/lib/auth'
 
 // DELETE /api/admin/timetable/[id]
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireRole('ADMIN')
+    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
+      throw new AuthError('Invalid or missing CSRF token', 403)
+    }
     const { id } = await params
     await db.timetable.delete({ where: { id } })
     return json({ ok: true })

@@ -1,7 +1,14 @@
 import { NextRequest } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError } from '@/lib/auth'
+import {
+  requireRole,
+  parseBody,
+  json,
+  errorResponse,
+  AuthError,
+  validateCsrfToken,
+} from '@/lib/auth'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -80,6 +87,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('TEACHER')
+    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
+      throw new AuthError('Invalid or missing CSRF token', 403)
+    }
     const teacherId = session.teacherId!
     const body = await parseBody<{
       subjectId?: string

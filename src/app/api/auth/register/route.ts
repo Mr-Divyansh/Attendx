@@ -7,6 +7,7 @@ import {
   json,
   errorResponse,
   issueCsrfToken,
+  checkRateLimit,
 } from '@/lib/auth'
 
 // POST /api/auth/register — personal-mode self-registration
@@ -21,6 +22,11 @@ export async function POST(req: NextRequest) {
 
   if (!fullName || !username || !password || !confirm) {
     return errorResponse('All fields are required', 400)
+  }
+
+  const ip = req.headers.get('x-forwarded-for') || 'unknown'
+  if (!checkRateLimit(`register:${ip}`)) {
+    return errorResponse('Too many attempts. Please try again in a few minutes.', 429)
   }
   if (password !== confirm) {
     return errorResponse('Passwords do not match', 400)

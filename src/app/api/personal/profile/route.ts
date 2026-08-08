@@ -1,11 +1,21 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError } from '@/lib/auth'
+import {
+  requireRole,
+  parseBody,
+  json,
+  errorResponse,
+  AuthError,
+  validateCsrfToken,
+} from '@/lib/auth'
 
 // PUT /api/personal/profile — update fullName (and optionally avatarUrl)
 export async function PUT(req: NextRequest) {
   try {
     const session = await requireRole('PERSONAL')
+    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
+      throw new AuthError('Invalid or missing CSRF token', 403)
+    }
     const body = await parseBody<{
       fullName?: string
       avatarUrl?: string | null

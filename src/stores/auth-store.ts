@@ -32,7 +32,7 @@ type AuthState = {
   setLoading: (b: boolean) => void
   setCsrf: (t: string | null) => void
   setView: (v: View) => void
-  openLogin: (role: Role) => void
+  openLogin: (role: Role | null) => void
   logout: () => Promise<void>
   refresh: () => Promise<void>
 }
