@@ -36,7 +36,11 @@ export async function POST(req: NextRequest) {
     return errorResponse('Invalid credentials for the selected role', 401)
   }
 
-  if (!verifyPassword(password, user.passwordHash)) {
+  if (user.disabled) {
+    return errorResponse('This account has been disabled', 403)
+  }
+
+  if (!user.passwordHash || !verifyPassword(password, user.passwordHash)) {
     return errorResponse('Invalid credentials', 401)
   }
 

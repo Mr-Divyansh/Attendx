@@ -125,16 +125,24 @@ export function Landing() {
         <div className="container mx-auto px-4 py-16 md:py-24 text-center">
           <div className="inline-flex items-center gap-2 rounded-full border bg-card/60 px-4 py-1.5 text-xs font-medium text-muted-foreground mb-6">
             <CheckCircle2 className="size-3.5 text-primary" />
-            PHP 8 · MySQL · Bootstrap 5 · Chart.js
+            Next.js · Prisma · Tailwind · React
           </div>
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight max-w-4xl mx-auto">
             Smart Attendance Management for{' '}
-            <span className="text-gradient">Students & Colleges</span>
+            <span className="text-gradient">Students & Teachers</span>
           </h1>
           <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
-            A modular, dual-mode attendance platform combining a College
-            Management System with an independent Personal Attendance Tracker.
+            A modern attendance platform with clean role-based workflows for
+            colleges and a dedicated personal tracker for every student.
           </p>
+          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Button onClick={() => openLogin('STUDENT')} className="min-w-[180px]">
+              Continue as Student
+            </Button>
+            <Button variant="outline" onClick={() => openLogin('TEACHER')} className="min-w-[180px]">
+              Teacher access
+            </Button>
+          </div>
 
           {/* Role entry cards */}
           <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
@@ -144,7 +152,7 @@ export function Landing() {
                 onClick={() => openLogin(c.role)}
                 className="group text-left"
               >
-                <Card className="h-full p-5 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 hover:border-primary/50 cursor-pointer">
+                <Card className="h-full p-5 border-transparent hover:shadow-xl hover:-translate-y-1 transition-all duration-200 hover:border-primary/40 cursor-pointer">
                   <div
                     className={`size-11 rounded-lg bg-primary/10 grid place-items-center mb-4 ${c.accent}`}
                   >

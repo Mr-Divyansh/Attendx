@@ -29,15 +29,17 @@ datasource db {
 model User {
   id           String      @id @default(cuid())
   email        String      @unique
-  passwordHash String
+  passwordHash String?
   role         Role        @default(STUDENT)
+  disabled     Boolean     @default(false)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  admin        Admin?
-  teacher      Teacher?
-  student      Student?
-  authAccounts AuthAccount[]
+  admin             Admin?
+  teacher           Teacher?
+  student           Student?
+  authAccounts      AuthAccount[]
+  collegeNotifications CollegeNotification[]
 }
 
 enum Role {
@@ -67,13 +69,17 @@ model Admin {
 }
 
 model Teacher {
-  id        String     @id @default(cuid())
-  userId    String     @unique
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fullName  String
-  deptId    String?
-  department Department? @relation(fields: [deptId], references: [id])
-  createdAt DateTime   @default(now())
+  id              String     @id @default(cuid())
+  userId          String     @unique
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName        String
+  subjectTaught   String?
+  institutionName String?
+  departmentLabel String?
+  deptId          String?
+  department      Department? @relation(fields: [deptId], references: [id])
+  profileComplete Boolean    @default(false)
+  createdAt       DateTime   @default(now())
 
   subjects  Subject[]
   slots     Timetable[]
@@ -87,6 +93,7 @@ model Student {
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   fullName        String
   rollNo          String
+  hasRollNumber   Boolean   @default(true)
   semesterId      String?
   sectionId       String?
   semester        Semester? @relation(fields: [semesterId], references: [id])
@@ -98,6 +105,7 @@ model Student {
   academicYear    String?
   course          String?
   semesterLabel   String?
+  profileComplete Boolean   @default(false)
   createdAt       DateTime  @default(now())
 
   attendance         Attendance[]
@@ -162,6 +170,7 @@ model Subject {
 
 model Classroom {
   id             String             @id @default(cuid())
+  publicId       String             @unique
   teacherId      String
   teacher        Teacher            @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   subjectId      String?
@@ -169,11 +178,12 @@ model Classroom {
   name           String
   course         String?
   section        String?
-  academicYear  String?
+  academicYear   String?
   joinCode       String             @unique
   inviteToken    String             @unique
   createdAt      DateTime           @default(now())
   members        ClassroomMember[]
+  attendance     Attendance[]
 }
 
 model ClassroomMember {
@@ -205,19 +215,23 @@ model Timetable {
 }
 
 model Attendance {
-  id         String   @id @default(cuid())
-  studentId  String?
-  subjectId  String?
-  student    Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  subject    Subject? @relation(fields: [subjectId], references: [id])
-  date       String   // YYYY-MM-DD
-  period     Int
-  status     String   // present | absent | late
-  markedById String?
-  markedBy   Teacher? @relation("MarkedBy", fields: [markedById], references: [id])
-  markedAt   DateTime @default(now())
+  id          String     @id @default(cuid())
+  studentId   String?
+  subjectId   String?
+  classroomId String?
+  student     Student?   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject     Subject?   @relation(fields: [subjectId], references: [id])
+  classroom   Classroom? @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  date        String     // YYYY-MM-DD
+  period      Int
+  status      String     // present | absent | late
+  markedById  String?
+  markedBy    Teacher?   @relation("MarkedBy", fields: [markedById], references: [id])
+  markedAt    DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@unique([studentId, subjectId, date, period])
+  @@unique([studentId, classroomId, date, period])
 }
 
 // ───────────────────────────────────────────────────────────
@@ -285,4 +299,24 @@ model Setting {
   language  String       @default("en")
   goalPct   Int          @default(75)
   avatarUrl String?
+}
+
+// ───────────────────────────────────────────────────────────
+// System-wide settings & college notifications
+// ───────────────────────────────────────────────────────────
+
+model SystemSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+}
+
+model CollegeNotification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // info | warning | low_attendance | advice
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
 }

@@ -8,6 +8,7 @@ export async function POST(req: NextRequest) {
     const body = await parseBody<{
       fullName?: string
       rollNo?: string
+      hasRollNumber?: boolean
       studentType?: string
       institutionName?: string
       gradeLevel?: string
@@ -22,9 +23,19 @@ export async function POST(req: NextRequest) {
     const student = await db.student.findUnique({ where: { id: session.studentId } })
     if (!student) return errorResponse('Student not found', 404)
 
+    const hasRollNumber = body.hasRollNumber !== false
+    const rollNo = hasRollNumber
+      ? body.rollNo?.trim() || student.rollNo
+      : 'N/A'
+
+    if (hasRollNumber && (!rollNo || rollNo === 'PENDING')) {
+      return errorResponse('Roll number is required', 400)
+    }
+
     const data = {
       fullName: body.fullName?.trim() || student.fullName,
-      rollNo: body.rollNo?.trim() || student.rollNo,
+      rollNo,
+      hasRollNumber,
       studentType: body.studentType || student.studentType || null,
       institutionName: body.institutionName?.trim() || student.institutionName || null,
       gradeLevel: body.gradeLevel?.trim() || student.gradeLevel || null,
@@ -32,6 +43,13 @@ export async function POST(req: NextRequest) {
       academicYear: body.academicYear?.trim() || student.academicYear || null,
       course: body.course?.trim() || student.course || null,
       semesterLabel: body.semesterLabel?.trim() || student.semesterLabel || null,
+      profileComplete: Boolean(
+        (body.fullName?.trim() || student.fullName) &&
+          body.studentType &&
+          (body.studentType === 'SCHOOL'
+            ? body.institutionName?.trim() && body.gradeLevel?.trim()
+            : body.institutionName?.trim() && body.course?.trim())
+      ),
     }
 
     const updated = await db.student.update({

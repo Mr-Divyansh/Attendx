@@ -150,7 +150,7 @@ export async function getSession(): Promise<SessionUser | null> {
     where: { id: payload.id },
     include: { admin: true, teacher: true, student: true },
   })
-  if (!u) return null
+  if (!u || u.disabled) return null
   const base: SessionUser = {
     id: u.id,
     email: u.email,

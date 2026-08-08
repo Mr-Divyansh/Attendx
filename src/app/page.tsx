@@ -1,21 +1,47 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/stores/auth-store'
 import { Landing } from '@/components/landing'
 import { AuthModal } from '@/components/auth-modal'
-import { AdminDashboard } from '@/components/modules/admin-dashboard'
 import { TeacherDashboard } from '@/components/modules/teacher-dashboard'
 import { StudentDashboard } from '@/components/modules/student-dashboard'
 import { PersonalDashboard } from '@/components/modules/personal-dashboard'
 import { Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
 
-export default function Home() {
-  const { user, loading, view, refresh } = useAuth()
+function HomeContent() {
+  const { user, loading, view, refresh, openLogin } = useAuth()
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  useEffect(() => {
+    if (searchParams.get('student_setup') === '1') {
+      refresh().then(() => openLogin('STUDENT', { profileSetup: true }))
+      router.replace('/')
+    }
+    if (searchParams.get('student_login') === '1') {
+      toast.success('Signed in successfully!')
+      router.replace('/')
+    }
+    const authError = searchParams.get('auth_error')
+    if (authError) {
+      toast.error(`Sign-in failed: ${authError.replace(/_/g, ' ')}`)
+      router.replace('/')
+    }
+  }, [searchParams, openLogin, router])
+
+  useEffect(() => {
+    if (user?.role === 'ADMIN') {
+      router.replace('/admin-panel')
+    }
+  }, [user, router])
 
   if (loading) {
     return (
@@ -37,8 +63,6 @@ export default function Home() {
     <>
       {!user ? (
         <Landing />
-      ) : view === 'admin' ? (
-        <AdminDashboard />
       ) : view === 'teacher' ? (
         <TeacherDashboard />
       ) : view === 'student' ? (
@@ -50,5 +74,19 @@ export default function Home() {
       )}
       <AuthModal />
     </>
+  )
+}
+
+export default function Home() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen grid place-items-center">
+          <Loader2 className="size-6 animate-spin" />
+        </div>
+      }
+    >
+      <HomeContent />
+    </Suspense>
   )
 }

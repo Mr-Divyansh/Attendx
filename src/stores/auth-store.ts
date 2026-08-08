@@ -28,11 +28,12 @@ type AuthState = {
   csrfToken: string | null
   view: View
   loginRole: Role | null // which login form to show
+  forceProfileSetup: boolean
   setUser: (u: SessionUser | null) => void
   setLoading: (b: boolean) => void
   setCsrf: (t: string | null) => void
   setView: (v: View) => void
-  openLogin: (role: Role | null) => void
+  openLogin: (role: Role | null, opts?: { profileSetup?: boolean }) => void
   logout: () => Promise<void>
   refresh: () => Promise<void>
 }
@@ -50,6 +51,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   csrfToken: null,
   view: 'landing',
   loginRole: null,
+  forceProfileSetup: false,
 
   setUser: (u) => {
     if (u) {
@@ -70,11 +72,15 @@ export const useAuth = create<AuthState>((set, get) => ({
   setCsrf: (t) => set({ csrfToken: t }),
   setView: (v) => set({ view: v }),
 
-  openLogin: (role) => set({ loginRole: role }),
+  openLogin: (role, opts) =>
+    set({
+      loginRole: role,
+      forceProfileSetup: opts?.profileSetup ?? false,
+    }),
 
   logout: async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
-    set({ user: null, view: 'landing', loginRole: null, csrfToken: null })
+    set({ user: null, view: 'landing', loginRole: null, csrfToken: null, forceProfileSetup: false })
   },
 
   refresh: async () => {

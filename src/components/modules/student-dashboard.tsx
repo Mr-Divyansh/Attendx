@@ -59,14 +59,26 @@ import {
 
 // ── Types (mirrors API responses) ──────────────────────────────────────────
 type StatsResp = {
-  overallPct: number
+  overallPct: number | null
+  minimumAttendancePercentage: number
   todayPresent: number
   todayTotal: number
   todayStatus: string
   subjectsTracked: number
   atRiskCount: number
   counts: { present: number; late: number; absent: number; attended: number; total: number }
-  student: { name: string; rollNo: string; semesterName: string; sectionName: string }
+  student: {
+    name: string
+    rollNo: string
+    studentType?: string | null
+    institutionName?: string | null
+    gradeLevel?: string | null
+    schoolSection?: string | null
+    course?: string | null
+    semesterLabel?: string | null
+    semesterName: string
+    sectionName: string
+  }
 }
 
 type SubjectRow = {
@@ -106,6 +118,7 @@ type MonthlyResp = { weeks: MonthRow[] }
 
 type ClassroomRow = {
   id: string
+  publicId?: string
   name: string
   subject?: { name: string } | null
   teacher?: { fullName: string } | null
@@ -206,7 +219,8 @@ export function StudentDashboard() {
     .split(' ')[0]
     .toUpperCase()
 
-  const atRiskSubjects = subjects.filter((s) => s.pct < 75)
+  const threshold = stats?.minimumAttendancePercentage ?? 75
+  const atRiskSubjects = subjects.filter((s) => s.pct >= 0 && s.pct < threshold)
 
   const handleJoinClassroom = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -270,17 +284,26 @@ export function StudentDashboard() {
         {!loading && stats && stats.atRiskCount > 0 && (
           <Alert className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
             <TriangleAlert className="text-amber-600 dark:text-amber-400" />
-            <AlertTitle>Attendance below 75% in {stats.atRiskCount}{' '}
-              {stats.atRiskCount === 1 ? 'subject' : 'subjects'}</AlertTitle>
+            <AlertTitle>
+              Attendance below {threshold}% in {stats.atRiskCount}{' '}
+              {stats.atRiskCount === 1 ? 'subject' : 'subjects'}
+            </AlertTitle>
             <AlertDescription className="text-amber-700/90 dark:text-amber-300/90">
-              You may be at risk of attendance shortage. Please check the
-              subject breakdown below and reach out to your faculty.
+              Your attendance has fallen below the minimum requirement. Please attend
+              upcoming classes regularly.
             </AlertDescription>
           </Alert>
         )}
 
-        {/* Stat cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {!loading && stats && stats.counts.total === 0 && (
+          <Alert>
+            <BookOpen />
+            <AlertTitle>No attendance records yet</AlertTitle>
+            <AlertDescription>
+              Your attendance will appear here once classes are recorded.
+            </AlertDescription>
+          </Alert>
+        )}
           {loading ? (
             <>
               <Skeleton className="h-28 rounded-xl" />
@@ -292,7 +315,11 @@ export function StudentDashboard() {
             <>
               <StatCard
                 label="Overall Attendance"
-                value={`${stats.overallPct}%`}
+                value={
+                  stats.overallPct == null
+                    ? '—'
+                    : `${stats.overallPct}%`
+                }
                 icon={GraduationCap}
                 tone="primary"
               />
@@ -732,12 +759,12 @@ export function StudentDashboard() {
         </section>
 
         {/* Summary footer card */}
-        {!loading && stats && subjects.length > 0 && (
+        {!loading && stats && stats.counts.total > 0 && subjects.length > 0 && (
           <Card className="bg-gradient-to-br from-primary/5 via-card to-card">
             <CardContent className="pt-6">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <div className="size-12 rounded-xl bg-primary/10 text-primary grid place-items-center shrink-0">
-                  {stats.overallPct >= 75 ? (
+                  {stats.overallPct != null && stats.overallPct >= threshold ? (
                     <CheckCircle2 className="size-6" />
                   ) : (
                     <TriangleAlert className="size-6" />
@@ -745,24 +772,24 @@ export function StudentDashboard() {
                 </div>
                 <div className="flex-1">
                   <p className="font-semibold">
-                    {stats.overallPct >= 75
-                      ? 'You are on track!'
-                      : 'You are below the 75% threshold.'}
+                    {stats.overallPct == null
+                      ? 'No attendance records yet'
+                      : stats.overallPct >= threshold
+                        ? 'Good attendance. Keep it up!'
+                        : stats.overallPct === threshold
+                          ? 'You are at the minimum attendance requirement.'
+                          : `Your attendance is currently ${stats.overallPct}%.`}
                   </p>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    {stats.counts.attended} attended out of{' '}
-                    {stats.counts.total} total periods ·{' '}
-                    {atRiskSubjects.length} of {subjects.length} subjects below
-                    75%.
+                    {stats.counts.attended} attended out of {stats.counts.total} total
+                    periods · minimum required: {threshold}%.
                   </p>
                 </div>
                 <div className="text-right">
                   <div className="text-3xl font-bold tracking-tight">
-                    {stats.overallPct}%
+                    {stats.overallPct == null ? '—' : `${stats.overallPct}%`}
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    Overall attendance
-                  </div>
+                  <div className="text-xs text-muted-foreground">Overall attendance</div>
                 </div>
               </div>
             </CardContent>
@@ -817,23 +844,28 @@ function WelcomeBanner({
               </>
             ) : student ? (
               <>
-                <Badge
-                  variant="secondary"
-                  className="gap-1.5 py-1 px-3"
-                >
-                  <GraduationCap className="size-3.5" />
-                  {student.semesterName}
-                </Badge>
-                <Badge
-                  variant="secondary"
-                  className="gap-1.5 py-1 px-3"
-                >
-                  Section {student.sectionName}
-                </Badge>
-                <Badge
-                  variant="secondary"
-                  className="gap-1.5 py-1 px-3"
-                >
+                {student.studentType === 'SCHOOL' ? (
+                  <>
+                    <Badge variant="secondary" className="gap-1.5 py-1 px-3">
+                      <School className="size-3.5" />
+                      Class {student.gradeLevel}-{student.sectionName}
+                    </Badge>
+                    <Badge variant="secondary" className="gap-1.5 py-1 px-3">
+                      {student.institutionName || 'School'}
+                    </Badge>
+                  </>
+                ) : (
+                  <>
+                    <Badge variant="secondary" className="gap-1.5 py-1 px-3">
+                      <Building2 className="size-3.5" />
+                      {student.course || student.semesterName}
+                    </Badge>
+                    <Badge variant="secondary" className="gap-1.5 py-1 px-3">
+                      {student.institutionName || 'College'}
+                    </Badge>
+                  </>
+                )}
+                <Badge variant="secondary" className="gap-1.5 py-1 px-3">
                   Roll {student.rollNo}
                 </Badge>
               </>

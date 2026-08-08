@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { requireRole, parseBody, json, errorResponse, AuthError, validateCsrfToken } from '@/lib/auth'
+import { makeClassroomPublicId } from '@/lib/oauth'
 
 function makeJoinCode() {
   return Math.random().toString(36).slice(2, 8).toUpperCase()
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
     const classroom = await db.classroom.create({
       data: {
         teacherId: session.teacherId,
+        publicId: makeClassroomPublicId(body.name.trim()),
         name: body.name.trim(),
         subjectId: body.subjectId || null,
         course: body.course?.trim() || null,

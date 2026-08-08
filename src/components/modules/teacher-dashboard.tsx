@@ -88,7 +88,19 @@ type TodayClass = {
 }
 type Stats = { todayClasses: number; pending: number; completed: number }
 type Status = 'present' | 'absent' | 'late'
-type Classroom = { id: string; name: string; joinCode: string; inviteToken: string; subject?: { name: string } | null; members: Array<{ student: { fullName: string; rollNo: string } }> }
+type Classroom = {
+  id: string
+  publicId?: string
+  name: string
+  joinCode: string
+  inviteToken: string
+  subject?: { name: string } | null
+  members: Array<{
+    id: string
+    status: string
+    student: { fullName: string; rollNo: string; userId?: string }
+  }>
+}
 
 const STEPS = [
   { n: 1, label: 'Semester' },
@@ -495,6 +507,33 @@ export function TeacherDashboard() {
       })
       setClassroomName('')
       setClassroomCourse('')
+      setClassroomSection('')
+      setClassroomYear('')
+      setClassroomSubjectId('')
+      toast.success('Classroom created!')
+      await refreshClassrooms()
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setClassroomLoading(false)
+    }
+  }
+
+  const handleApproveMember = async (
+    memberId: string,
+    action: 'approve' | 'reject'
+  ) => {
+    try {
+      await apiFetch('/api/classrooms/members', {
+        method: 'POST',
+        body: JSON.stringify({ memberId, action }),
+      })
+      toast.success(action === 'approve' ? 'Student approved' : 'Request rejected')
+      await refreshClassrooms()
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
       setClassroomSection('')
       setClassroomYear('')
       setClassroomSubjectId('')
@@ -1215,6 +1254,7 @@ function ClassroomsPanel({
   onYearChange,
   onSubjectChange,
   onCreate,
+  onApproveMember,
 }: {
   classrooms: Classroom[]
   classroomName: string
@@ -1230,7 +1270,14 @@ function ClassroomsPanel({
   onYearChange: (value: string) => void
   onSubjectChange: (value: string) => void
   onCreate: (e: React.FormEvent) => void
+  onApproveMember: (memberId: string, action: 'approve' | 'reject') => void
 }) {
+  const copyInvite = (token: string) => {
+    const url = `${window.location.origin}/join/${token}`
+    navigator.clipboard.writeText(url)
+    toast.success('Invite link copied!')
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
       <Card>
@@ -1285,18 +1332,55 @@ function ClassroomsPanel({
           {classrooms.length === 0 ? (
             <div className="rounded-lg border p-4 text-sm text-muted-foreground">No classrooms yet. Create one to start inviting students.</div>
           ) : classrooms.map((c) => (
-            <div key={c.id} className="rounded-lg border bg-card p-4">
+            <div key={c.id} className="rounded-xl border bg-card p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="font-semibold">{c.name}</p>
                   <p className="text-sm text-muted-foreground">{c.subject?.name || 'No subject linked'}</p>
+                  {c.publicId ? (
+                    <p className="text-xs text-muted-foreground mt-1 font-mono">Class ID: {c.publicId}</p>
+                  ) : null}
                 </div>
-                <Badge variant="outline">{c.members.length} students</Badge>
+                <Badge variant="outline">{c.members.filter((m) => m.status === 'ACTIVE').length} active</Badge>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1"><KeyRound className="size-3" />{c.joinCode}</span>
-                <span className="rounded-full border px-2 py-1">Token: {c.inviteToken}</span>
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs">
+                  <KeyRound className="size-3" /> Join: {c.joinCode}
+                </span>
+                <Button type="button" size="sm" variant="secondary" onClick={() => copyInvite(c.inviteToken)}>
+                  Copy invite link
+                </Button>
               </div>
+              {c.members.length > 0 ? (
+                <div className="space-y-2 pt-2 border-t">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Students</p>
+                  {[...c.members]
+                    .sort((a, b) => a.student.rollNo.localeCompare(b.student.rollNo))
+                    .map((m) => (
+                      <div key={m.id} className="flex items-center justify-between gap-2 text-sm">
+                        <span>
+                          {m.student.rollNo} — {m.student.fullName}
+                        </span>
+                        {m.status === 'PENDING' ? (
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="outline" onClick={() => onApproveMember(m.id, 'approve')}>
+                              Approve
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => onApproveMember(m.id, 'reject')}>
+                              Reject
+                            </Button>
+                          </div>
+                        ) : (
+                          <Badge variant="secondary">{m.status}</Badge>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground pt-2 border-t">
+                  No students have joined this classroom yet.
+                </p>
+              )}
             </div>
           ))}
         </CardContent>
