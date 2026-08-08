@@ -36,21 +36,22 @@ type SessionPayload = {
   sig: string
 }
 
-const SECRET = process.env.ATTENDX_SECRET || 'attendx-dev-secret-change-me'
+const ATTENDX_SECRET = process.env.ATTENDX_SECRET
+const SECRET = ATTENDX_SECRET || 'attendx-dev-secret-change-me'
 
-if (process.env.NODE_ENV === 'production' && !process.env.ATTENDX_SECRET) {
-  // The fallback secret is public (it's in this source file), so if it's ever used in
-  // production, anyone can forge a valid session cookie for any user. Fail loudly instead
-  // of silently shipping an insecure deployment.
-  throw new Error(
-    'ATTENDX_SECRET environment variable is not set. Set it in your hosting provider\'s ' +
-      'environment variables (Netlify: Site settings → Environment variables) to a long ' +
-      'random string before deploying to production.'
-  )
+function getSecret(): string {
+  if (process.env.NODE_ENV === 'production' && !ATTENDX_SECRET) {
+    throw new Error(
+      'ATTENDX_SECRET environment variable is not set. Set it in your hosting provider\'s ' +
+        'environment variables (Netlify: Site settings → Environment variables) to a long ' +
+        'random string before deploying to production.'
+    )
+  }
+  return SECRET
 }
 
 function sign(data: string): string {
-  return crypto.createHmac('sha256', SECRET).update(data).digest('hex')
+  return crypto.createHmac('sha256', getSecret()).update(data).digest('hex')
 }
 
 function encodePayload(payload: Omit<SessionPayload, 'sig'>): string {
