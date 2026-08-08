@@ -534,17 +534,6 @@ export function TeacherDashboard() {
       toast.error((err as Error).message)
     }
   }
-      setClassroomSection('')
-      setClassroomYear('')
-      setClassroomSubjectId('')
-      await refreshClassrooms()
-      toast.success('Classroom created')
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Unable to create classroom')
-    } finally {
-      setClassroomLoading(false)
-    }
-  }
 
   const title = `Teacher Panel${user?.name ? ` — ${user.name}` : ''}`
 
@@ -605,6 +594,7 @@ export function TeacherDashboard() {
             onYearChange={setClassroomYear}
             onSubjectChange={setClassroomSubjectId}
             onCreate={handleCreateClassroom}
+            onApproveMember={handleApproveMember}
           />
         ) : active === 'mark' ? (
           <MarkAttendanceFlow

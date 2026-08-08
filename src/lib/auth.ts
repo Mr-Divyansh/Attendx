@@ -275,3 +275,40 @@ export function json(data: unknown, status = 200) {
 export function errorResponse(message: string, status = 400) {
   return Response.json({ error: message }, { status })
 }
+
+/**
+ * Map an unexpected thrown error (typically a Prisma/DB failure) to a safe,
+ * user-facing JSON error, and log the full details server-side.
+ *
+ * Without this, an unhandled exception in a route makes Next.js return a bare
+ * 500 with no JSON body, and clients show the generic "Request failed (500)".
+ */
+export function handleRouteError(e: unknown, context: string): Response {
+  const message = e instanceof Error ? e.message : String(e)
+  console.error(`[${context}] error:`, e)
+
+  // Prisma P1000/P1001/P1003 — cannot reach / authenticate with the database
+  if (message.includes('P1001') || message.includes('P1003')) {
+    return errorResponse(
+      'Database is unreachable. Check the DATABASE_URL and that the database server is running.',
+      503
+    )
+  }
+  // Prisma P1000 — generic connection error
+  if (message.includes('P1000')) {
+    return errorResponse('Database connection failed. Please try again in a few minutes.', 503)
+  }
+  // Prisma P2021 — table or column does not exist (schema not pushed)
+  if (message.includes('P2021')) {
+    return errorResponse(
+      'Database schema is out of date. The administrator needs to run `npx prisma db push` and redeploy.',
+      503
+    )
+  }
+  // Prisma P2002 — unique constraint violation
+  if (message.includes('P2002')) {
+    return errorResponse('A record with this value already exists.', 409)
+  }
+
+  return errorResponse('An unexpected error occurred. Please try again later.', 500)
+}

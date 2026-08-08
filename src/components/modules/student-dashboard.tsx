@@ -343,7 +343,6 @@ export function StudentDashboard() {
               />
             </>
           ) : null}
-        </div>
 
         <section id="section-classrooms" className="scroll-mt-24">
           <Card>
