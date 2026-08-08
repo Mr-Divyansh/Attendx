@@ -95,7 +95,7 @@ async function main() {
     'Aarav Sharma', 'Diya Patel', 'Kabir Singh', 'Ananya Reddy',
     'Vivaan Gupta', 'Ishaan Verma', 'Saanvi Nair', 'Arjun Mehta',
   ]
-  const students = []
+  const students: Array<{ id: string; rollNo: string }> = []
   for (let i = 0; i < studentNames.length; i++) {
     const sUser = await db.user.create({
       data: {
@@ -113,7 +113,8 @@ async function main() {
       },
       include: { student: true },
     })
-    students.push(sUser.student!)
+    const createdStudent = sUser.student!
+    students.push({ id: createdStudent.id, rollNo: createdStudent.rollNo })
   }
 
   // ── Timetable for Section B ──
@@ -136,7 +137,7 @@ async function main() {
     [subjComm.id]: 'Room 308',
     [subjCoa.id]: 'Room 112',
   }
-  const ttCreates = []
+  const ttCreates: Array<ReturnType<typeof db.timetable.create>> = []
   for (const day of DAYS) {
     ttMap[day].forEach((subjId, idx) => {
       const p = PERIODS[idx]
@@ -157,7 +158,7 @@ async function main() {
   await Promise.all(ttCreates)
 
   // ── Attendance records (last 20 weekdays, all students) ──
-  const attCreates = []
+  const attCreates: Array<ReturnType<typeof db.attendance.create>> = []
   for (const stu of students) {
     for (let d = 0; d < 20; d++) {
       const dateStr = dateOffset(d)
@@ -201,7 +202,7 @@ async function main() {
     { name: 'Communication Skills', room: 'Room 308', teacher: '' },
     { name: 'COA', room: 'Room 112', teacher: 'Prof. Khan' },
   ]
-  const pttCreates = []
+  const pttCreates: Array<ReturnType<typeof db.personalTimetable.create>> = []
   for (const day of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
     pSubj.forEach((s, idx) => {
       pttCreates.push(db.personalTimetable.create({
@@ -220,7 +221,7 @@ async function main() {
   }
   await Promise.all(pttCreates)
 
-  const pattCreates = []
+  const pattCreates: Array<ReturnType<typeof db.personalAttendance.create>> = []
   for (let d = 0; d < 14; d++) {
     const dateStr = dateOffset(d)
     const dow = new Date(dateStr).getDay()

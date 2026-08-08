@@ -81,7 +81,9 @@ export async function POST(req: NextRequest) {
     const daySlots = await db.personalTimetable.findMany({
       where: { userId: session.id, day: dayName },
     })
-    const slotByPeriod = new Map(daySlots.map((s) => [s.period, s]))
+    const slotByPeriod = new Map<number, { subjectName: string }>(
+      daySlots.map((s) => [s.period, { subjectName: s.subjectName }])
+    )
 
     // Delete existing attendance for that date, then re-create (simpler than per-row upsert)
     await db.personalAttendance.deleteMany({

@@ -29,31 +29,18 @@ const roleCards: {
 }[] = [
   {
     role: 'STUDENT',
-    title: 'Student Login',
-    desc: 'View your official attendance & analytics',
+git init
+    title: 'Student',
+    desc: 'Continue with Google and view your attendance',
     icon: GraduationCap,
     accent: 'text-chart-1',
   },
   {
     role: 'TEACHER',
-    title: 'Teacher Login',
-    desc: 'Mark attendance with a guided 6-step flow',
+    title: 'Teacher',
+    desc: 'Create classrooms and mark attendance',
     icon: Users,
     accent: 'text-chart-2',
-  },
-  {
-    role: 'ADMIN',
-    title: 'Admin Login',
-    desc: 'Full institutional control cockpit',
-    icon: UserCog,
-    accent: 'text-chart-3',
-  },
-  {
-    role: 'PERSONAL',
-    title: 'Personal Tracker',
-    desc: 'Independent tracker — no college required',
-    icon: Target,
-    accent: 'text-chart-4',
   },
 ]
 
@@ -128,7 +115,7 @@ export function Landing() {
               onClick={() => openLogin('PERSONAL')}
               className="hidden sm:inline-flex"
             >
-              Personal Mode
+              Personal Tracker
             </Button>
           </div>
         </div>
@@ -151,7 +138,7 @@ export function Landing() {
           </p>
 
           {/* Role entry cards */}
-          <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto">
+          <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
             {roleCards.map((c) => (
               <button
                 key={c.role}

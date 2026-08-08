@@ -37,12 +37,24 @@ model User {
   admin        Admin?
   teacher      Teacher?
   student      Student?
+  authAccounts AuthAccount[]
 }
 
 enum Role {
   ADMIN
   TEACHER
   STUDENT
+}
+
+model AuthAccount {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String
+  providerAccountId String
+  createdAt         DateTime @default(now())
+
+  @@unique([provider, providerAccountId])
 }
 
 model Admin {
@@ -66,21 +78,30 @@ model Teacher {
   subjects  Subject[]
   slots     Timetable[]
   marked    Attendance[] @relation("MarkedBy")
+  classrooms Classroom[]
 }
 
 model Student {
-  id          String    @id @default(cuid())
-  userId      String    @unique
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fullName    String
-  rollNo      String
-  semesterId  String?
-  sectionId   String?
-  semester    Semester? @relation(fields: [semesterId], references: [id])
-  section     Section?  @relation(fields: [sectionId], references: [id])
-  createdAt   DateTime  @default(now())
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName        String
+  rollNo          String
+  semesterId      String?
+  sectionId       String?
+  semester        Semester? @relation(fields: [semesterId], references: [id])
+  section         Section?  @relation(fields: [sectionId], references: [id])
+  studentType     String?   // SCHOOL or COLLEGE
+  institutionName String?
+  gradeLevel      String?
+  schoolSection   String?
+  academicYear    String?
+  course          String?
+  semesterLabel   String?
+  createdAt       DateTime  @default(now())
 
-  attendance Attendance[]
+  attendance         Attendance[]
+  classroomMemberships ClassroomMember[]
 }
 
 // ───────────────────────────────────────────────────────────
@@ -136,6 +157,35 @@ model Subject {
 
   timetables  Timetable[]
   attendance  Attendance[]
+  classrooms  Classroom[]
+}
+
+model Classroom {
+  id             String             @id @default(cuid())
+  teacherId      String
+  teacher        Teacher            @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subjectId      String?
+  subject        Subject?           @relation(fields: [subjectId], references: [id])
+  name           String
+  course         String?
+  section        String?
+  academicYear  String?
+  joinCode       String             @unique
+  inviteToken    String             @unique
+  createdAt      DateTime           @default(now())
+  members        ClassroomMember[]
+}
+
+model ClassroomMember {
+  id           String     @id @default(cuid())
+  classroomId  String
+  classroom    Classroom  @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status       String     @default("ACTIVE")
+  joinedAt     DateTime   @default(now())
+
+  @@unique([classroomId, studentId])
 }
 
 model Timetable {

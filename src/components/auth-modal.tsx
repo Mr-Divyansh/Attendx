@@ -6,50 +6,81 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
-import { GraduationCap, Users, UserCog, Target, Loader2 } from 'lucide-react'
+import { GraduationCap, Users, Loader2, BookOpen, Building2 } from 'lucide-react'
 
-const roleMeta: Record<Role, { icon: React.ElementType; label: string; hint: string; demo: string }> = {
-  STUDENT: { icon: GraduationCap, label: 'Student', hint: 'student1@attendx.edu', demo: 'student123' },
-  TEACHER: { icon: Users, label: 'Teacher', hint: 'rao@attendx.edu', demo: 'teacher123' },
-  ADMIN: { icon: UserCog, label: 'Admin', hint: 'admin@attendx.edu', demo: 'admin123' },
-  PERSONAL: { icon: Target, label: 'Personal', hint: 'riya', demo: 'personal123' },
+const roleMeta: Record<Exclude<Role, 'ADMIN' | 'PERSONAL'>, { icon: React.ElementType; label: string; hint: string }> = {
+  STUDENT: { icon: GraduationCap, label: 'Student', hint: 'Use your Google account to continue' },
+  TEACHER: { icon: Users, label: 'Teacher', hint: 'Sign in with your teacher account' },
+}
+
+type ProfileForm = {
+  fullName: string
+  rollNo: string
+  studentType: 'SCHOOL' | 'COLLEGE'
+  institutionName: string
+  gradeLevel: string
+  schoolSection: string
+  academicYear: string
+  course: string
+  semesterLabel: string
 }
 
 export function AuthModal() {
-  const { loginRole, openLogin, setUser, setCsrf, setView } = useAuth()
+  const { loginRole, openLogin, setUser, setCsrf } = useAuth()
   const open = loginRole !== null
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [username, setUsername] = useState('')
-  const [fullName, setFullName] = useState('')
-  const [confirm, setConfirm] = useState('')
+  const [studentName, setStudentName] = useState('')
+  const [studentEmail, setStudentEmail] = useState('')
+  const [profileMode, setProfileMode] = useState(false)
+  const [profileForm, setProfileForm] = useState<ProfileForm>({
+    fullName: '',
+    rollNo: '',
+    studentType: 'COLLEGE',
+    institutionName: '',
+    gradeLevel: '',
+    schoolSection: '',
+    academicYear: '',
+    course: '',
+    semesterLabel: '',
+  })
   const [busy, setBusy] = useState(false)
 
-  // Personal mode uses tabs: login vs register
-  const isPersonal = loginRole === 'PERSONAL'
-
-  const close = () => openLogin(null) // reset
-  const reset = () => {
-    setEmail(''); setPassword(''); setUsername(''); setFullName(''); setConfirm('')
+  const close = () => {
+    openLogin(null)
+    setProfileMode(false)
+    setEmail('')
+    setPassword('')
+    setStudentName('')
+    setStudentEmail('')
+    setProfileForm({
+      fullName: '',
+      rollNo: '',
+      studentType: 'COLLEGE',
+      institutionName: '',
+      gradeLevel: '',
+      schoolSection: '',
+      academicYear: '',
+      course: '',
+      semesterLabel: '',
+    })
   }
 
-  const handleCollegeLogin = async (e: React.FormEvent) => {
+  const handleTeacherLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!loginRole || loginRole === 'PERSONAL') return
+    if (!loginRole || loginRole === 'STUDENT') return
     setBusy(true)
     try {
       const data = await apiFetch<{ user: SessionUser; csrfToken: string }>('/api/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email, password, role: loginRole }),
+        body: JSON.stringify({ email, password, role: 'TEACHER' }),
       })
       setUser(data.user)
       setCsrf(data.csrfToken)
       toast.success(`Welcome back, ${data.user.name}!`)
-      reset()
       close()
     } catch (err) {
       toast.error((err as Error).message)
@@ -58,19 +89,25 @@ export function AuthModal() {
     }
   }
 
-  const handlePersonalLogin = async (e: React.FormEvent) => {
+  const handleStudentGoogle = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!loginRole || loginRole !== 'STUDENT') return
     setBusy(true)
     try {
-      const data = await apiFetch<{ user: SessionUser; csrfToken: string }>('/api/auth/login-personal', {
+      const data = await apiFetch<{ user: SessionUser; csrfToken: string; needsProfile: boolean }>('/api/auth/google', {
         method: 'POST',
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ name: studentName, email: studentEmail }),
       })
       setUser(data.user)
       setCsrf(data.csrfToken)
-      toast.success(`Welcome, ${data.user.name}!`)
-      reset()
-      close()
+      if (data.needsProfile) {
+        setProfileForm((prev) => ({ ...prev, fullName: data.user.name || studentName }))
+        setProfileMode(true)
+        toast.success('Welcome! Please complete your student profile.')
+      } else {
+        toast.success(`Welcome, ${data.user.name}!`)
+        close()
+      }
     } catch (err) {
       toast.error((err as Error).message)
     } finally {
@@ -78,18 +115,15 @@ export function AuthModal() {
     }
   }
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true)
     try {
-      const data = await apiFetch<{ user: SessionUser; csrfToken: string }>('/api/auth/register', {
+      await apiFetch('/api/student/profile', {
         method: 'POST',
-        body: JSON.stringify({ fullName, username, password, confirm }),
+        body: JSON.stringify(profileForm),
       })
-      setUser(data.user)
-      setCsrf(data.csrfToken)
-      toast.success('Account created. Welcome to AttendX Personal!')
-      reset()
+      toast.success('Profile saved. Your dashboard is ready.')
       close()
     } catch (err) {
       toast.error((err as Error).message)
@@ -98,7 +132,7 @@ export function AuthModal() {
     }
   }
 
-  const meta = loginRole ? roleMeta[loginRole] : roleMeta.STUDENT
+  const meta = loginRole ? roleMeta[loginRole as Exclude<Role, 'ADMIN' | 'PERSONAL'>] : roleMeta.STUDENT
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
@@ -107,147 +141,111 @@ export function AuthModal() {
           <div className="size-12 rounded-xl bg-primary/10 text-primary grid place-items-center mb-2">
             <meta.icon className="size-6" />
           </div>
-          <DialogTitle>
-            {isPersonal ? 'Personal Attendance Tracker' : `${meta.label} Login`}
-          </DialogTitle>
+          <DialogTitle>{loginRole === 'TEACHER' ? 'Teacher access' : 'Student access'}</DialogTitle>
           <DialogDescription>
-            {isPersonal
-              ? 'Self-contained tracker — no college required.'
-              : 'Enter your institutional credentials to continue.'}
+            {loginRole === 'TEACHER'
+              ? 'Use your teacher credentials to continue.'
+              : 'Continue with Google and finish your student profile.'}
           </DialogDescription>
         </DialogHeader>
 
-        {!isPersonal ? (
-          <form onSubmit={handleCollegeLogin} className="space-y-4">
+        {loginRole === 'STUDENT' && !profileMode ? (
+          <form onSubmit={handleStudentGoogle} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder={meta.hint}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoFocus
-              />
+              <Label htmlFor="student-name">Your name</Label>
+              <Input id="student-name" value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="Divyansh Kumar" required autoFocus />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="pwd">Password</Label>
-              <Input
-                id="pwd"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <Label htmlFor="student-email">Email</Label>
+              <Input id="student-email" type="email" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} placeholder="you@example.com" required />
             </div>
             <Button type="submit" className="w-full" disabled={busy}>
-              {busy && <Loader2 className="size-4 mr-2 animate-spin" />}
-              Sign in as {meta.label}
+              {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <GraduationCap className="size-4 mr-2" />}
+              Continue with Google
             </Button>
-            {process.env.NODE_ENV !== 'production' && (
-              <p className="text-xs text-muted-foreground text-center pt-1">
-                Demo (dev only): <span className="font-mono">{meta.hint}</span> /{' '}
-                <span className="font-mono">{meta.demo}</span>
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground text-center">This flow creates a secure student profile and session for your device.</p>
           </form>
-        ) : (
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="register">Register</TabsTrigger>
-            </TabsList>
-            <TabsContent value="login">
-              <form onSubmit={handlePersonalLogin} className="space-y-4">
+        ) : null}
+
+        {loginRole === 'STUDENT' && profileMode ? (
+          <form onSubmit={handleProfileSave} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="profile-name">Student name</Label>
+              <Input id="profile-name" value={profileForm.fullName} onChange={(e) => setProfileForm((prev) => ({ ...prev, fullName: e.target.value }))} required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="profile-roll">Roll number</Label>
+              <Input id="profile-roll" value={profileForm.rollNo} onChange={(e) => setProfileForm((prev) => ({ ...prev, rollNo: e.target.value }))} placeholder="BCA2026001" required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="profile-type">Student type</Label>
+              <select id="profile-type" value={profileForm.studentType} onChange={(e) => setProfileForm((prev) => ({ ...prev, studentType: e.target.value as 'SCHOOL' | 'COLLEGE' }))} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                <option value="SCHOOL">School Student</option>
+                <option value="COLLEGE">College Student</option>
+              </select>
+            </div>
+            {profileForm.studentType === 'SCHOOL' ? (
+              <>
                 <div className="space-y-1.5">
-                  <Label htmlFor="uname">Username</Label>
-                  <Input
-                    id="uname"
-                    placeholder="riya"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                    autoFocus
-                  />
+                  <Label htmlFor="profile-school">School name</Label>
+                  <Input id="profile-school" value={profileForm.institutionName} onChange={(e) => setProfileForm((prev) => ({ ...prev, institutionName: e.target.value }))} placeholder="ABC School" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="profile-grade">Grade/Class</Label>
+                    <Input id="profile-grade" value={profileForm.gradeLevel} onChange={(e) => setProfileForm((prev) => ({ ...prev, gradeLevel: e.target.value }))} placeholder="10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="profile-section">Section</Label>
+                    <Input id="profile-section" value={profileForm.schoolSection} onChange={(e) => setProfileForm((prev) => ({ ...prev, schoolSection: e.target.value }))} placeholder="A" />
+                  </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="ppwd">Password</Label>
-                  <Input
-                    id="ppwd"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
+                  <Label htmlFor="profile-year">Academic year</Label>
+                  <Input id="profile-year" value={profileForm.academicYear} onChange={(e) => setProfileForm((prev) => ({ ...prev, academicYear: e.target.value }))} placeholder="2026-27" />
                 </div>
-                <Button type="submit" className="w-full" disabled={busy}>
-                  {busy && <Loader2 className="size-4 mr-2 animate-spin" />}
-                  Sign in
-                </Button>
-                {process.env.NODE_ENV !== 'production' && (
-                  <p className="text-xs text-muted-foreground text-center pt-1">
-                    Demo (dev only): <span className="font-mono">riya</span> /{' '}
-                    <span className="font-mono">personal123</span>
-                  </p>
-                )}
-              </form>
-            </TabsContent>
-            <TabsContent value="register">
-              <form onSubmit={handleRegister} className="space-y-3">
+              </>
+            ) : (
+              <>
                 <div className="space-y-1.5">
-                  <Label htmlFor="fn">Full Name</Label>
-                  <Input
-                    id="fn"
-                    placeholder="Your name"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    autoFocus
-                  />
+                  <Label htmlFor="profile-college">College or university</Label>
+                  <Input id="profile-college" value={profileForm.institutionName} onChange={(e) => setProfileForm((prev) => ({ ...prev, institutionName: e.target.value }))} placeholder="ABC College" />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="ru">Username</Label>
-                  <Input
-                    id="ru"
-                    placeholder="Choose a username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="profile-course">Course</Label>
+                    <Input id="profile-course" value={profileForm.course} onChange={(e) => setProfileForm((prev) => ({ ...prev, course: e.target.value }))} placeholder="BCA" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="profile-sem">Semester/year</Label>
+                    <Input id="profile-sem" value={profileForm.semesterLabel} onChange={(e) => setProfileForm((prev) => ({ ...prev, semesterLabel: e.target.value }))} placeholder="1st Semester" />
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="rp">Password</Label>
-                  <Input
-                    id="rp"
-                    type="password"
-                    placeholder="Min 6 characters"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="rc">Confirm Password</Label>
-                  <Input
-                    id="rc"
-                    type="password"
-                    placeholder="Re-enter password"
-                    value={confirm}
-                    onChange={(e) => setConfirm(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={busy}>
-                  {busy && <Loader2 className="size-4 mr-2 animate-spin" />}
-                  Create account
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-        )}
+              </>
+            )}
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <BookOpen className="size-4 mr-2" />}
+              Save profile and continue
+            </Button>
+          </form>
+        ) : null}
+
+        {loginRole === 'TEACHER' ? (
+          <form onSubmit={handleTeacherLogin} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="teacher-email">Teacher email</Label>
+              <Input id="teacher-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="rao@attendx.edu" required autoFocus />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="teacher-password">Password</Label>
+              <Input id="teacher-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
+            </div>
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Users className="size-4 mr-2" />}
+              Sign in as Teacher
+            </Button>
+          </form>
+        ) : null}
       </DialogContent>
     </Dialog>
   )

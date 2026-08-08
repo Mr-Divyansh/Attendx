@@ -57,6 +57,8 @@ import {
   Users,
   CalendarCheck,
   Hourglass,
+  PlusCircle,
+  KeyRound,
 } from 'lucide-react'
 
 // ── types ──
@@ -86,6 +88,7 @@ type TodayClass = {
 }
 type Stats = { todayClasses: number; pending: number; completed: number }
 type Status = 'present' | 'absent' | 'late'
+type Classroom = { id: string; name: string; joinCode: string; inviteToken: string; subject?: { name: string } | null; members: Array<{ student: { fullName: string; rollNo: string } }> }
 
 const STEPS = [
   { n: 1, label: 'Semester' },
@@ -132,16 +135,24 @@ function fmtDate(s: string): string {
 // ───────────────────────────────────────────────────────────
 export function TeacherDashboard() {
   const { user } = useAuth()
-  const [active, setActive] = useState<'mark' | 'today'>('mark')
+  const [active, setActive] = useState<'mark' | 'today' | 'classrooms'>('mark')
 
   const nav: NavItem[] = [
     { id: 'mark', label: 'Mark Attendance', icon: ClipboardCheck },
     { id: 'today', label: "Today's Classes", icon: CalendarDays },
+    { id: 'classrooms', label: 'Classrooms', icon: Users },
   ]
 
   // ── stats ──
   const [stats, setStats] = useState<Stats | null>(null)
   const [statsLoading, setStatsLoading] = useState(true)
+  const [classrooms, setClassrooms] = useState<Classroom[]>([])
+  const [classroomName, setClassroomName] = useState('')
+  const [classroomCourse, setClassroomCourse] = useState('')
+  const [classroomSection, setClassroomSection] = useState('')
+  const [classroomYear, setClassroomYear] = useState('')
+  const [classroomSubjectId, setClassroomSubjectId] = useState('')
+  const [classroomLoading, setClassroomLoading] = useState(false)
   const refreshStats = useCallback(async () => {
     setStatsLoading(true)
     try {
@@ -180,6 +191,19 @@ export function TeacherDashboard() {
   useEffect(() => {
     refreshToday()
   }, [refreshToday])
+
+  const refreshClassrooms = useCallback(async () => {
+    try {
+      const data = await apiFetch<{ classrooms: Classroom[] }>('/api/classrooms')
+      setClassrooms(data.classrooms || [])
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshClassrooms()
+  }, [refreshClassrooms])
 
   // ── 6-step flow state ──
   const [step, setStep] = useState(1)
@@ -455,13 +479,41 @@ export function TeacherDashboard() {
     return { present: p, absent: a, late: l }
   }, [marks, students])
 
+  const handleCreateClassroom = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setClassroomLoading(true)
+    try {
+      await apiFetch('/api/classrooms', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: classroomName,
+          subjectId: classroomSubjectId || undefined,
+          course: classroomCourse || undefined,
+          section: classroomSection || undefined,
+          academicYear: classroomYear || undefined,
+        }),
+      })
+      setClassroomName('')
+      setClassroomCourse('')
+      setClassroomSection('')
+      setClassroomYear('')
+      setClassroomSubjectId('')
+      await refreshClassrooms()
+      toast.success('Classroom created')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Unable to create classroom')
+    } finally {
+      setClassroomLoading(false)
+    }
+  }
+
   const title = `Teacher Panel${user?.name ? ` — ${user.name}` : ''}`
 
   return (
     <DashboardShell
       nav={nav}
       active={active}
-      onNavigate={(id) => setActive(id as 'mark' | 'today')}
+      onNavigate={(id) => setActive(id as 'mark' | 'today' | 'classrooms')}
       title={title}
       accent="Teacher"
     >
@@ -498,7 +550,24 @@ export function TeacherDashboard() {
           )}
         </div>
 
-        {active === 'mark' ? (
+        {active === 'classrooms' ? (
+          <ClassroomsPanel
+            classrooms={classrooms}
+            classroomName={classroomName}
+            classroomCourse={classroomCourse}
+            classroomSection={classroomSection}
+            classroomYear={classroomYear}
+            classroomSubjectId={classroomSubjectId}
+            classroomLoading={classroomLoading}
+            subjects={subjects}
+            onNameChange={setClassroomName}
+            onCourseChange={setClassroomCourse}
+            onSectionChange={setClassroomSection}
+            onYearChange={setClassroomYear}
+            onSubjectChange={setClassroomSubjectId}
+            onCreate={handleCreateClassroom}
+          />
+        ) : active === 'mark' ? (
           <MarkAttendanceFlow
             step={step}
             goToStep={goToStep}
@@ -1131,6 +1200,111 @@ function StatusToggle({
 // ───────────────────────────────────────────────────────────
 // Today's Classes panel
 // ───────────────────────────────────────────────────────────
+function ClassroomsPanel({
+  classrooms,
+  classroomName,
+  classroomCourse,
+  classroomSection,
+  classroomYear,
+  classroomSubjectId,
+  classroomLoading,
+  subjects,
+  onNameChange,
+  onCourseChange,
+  onSectionChange,
+  onYearChange,
+  onSubjectChange,
+  onCreate,
+}: {
+  classrooms: Classroom[]
+  classroomName: string
+  classroomCourse: string
+  classroomSection: string
+  classroomYear: string
+  classroomSubjectId: string
+  classroomLoading: boolean
+  subjects: Subject[]
+  onNameChange: (value: string) => void
+  onCourseChange: (value: string) => void
+  onSectionChange: (value: string) => void
+  onYearChange: (value: string) => void
+  onSubjectChange: (value: string) => void
+  onCreate: (e: React.FormEvent) => void
+}) {
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><PlusCircle className="size-5 text-primary" />Create Classroom</CardTitle>
+          <CardDescription>Generate a classroom invite with a join code and share it with students.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={onCreate} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Classroom name</Label>
+              <Input value={classroomName} onChange={(e) => onNameChange(e.target.value)} placeholder="BCA 1st Semester" required />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Course</Label>
+                <Input value={classroomCourse} onChange={(e) => onCourseChange(e.target.value)} placeholder="BCA" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Section</Label>
+                <Input value={classroomSection} onChange={(e) => onSectionChange(e.target.value)} placeholder="A" />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Academic year</Label>
+                <Input value={classroomYear} onChange={(e) => onYearChange(e.target.value)} placeholder="2026-27" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Subject</Label>
+                <Select value={classroomSubjectId} onValueChange={onSubjectChange}>
+                  <SelectTrigger><SelectValue placeholder="Optional subject" /></SelectTrigger>
+                  <SelectContent>
+                    {subjects.map((s) => <SelectItem key={s.id} value={s.id}>{s.code} · {s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button type="submit" disabled={classroomLoading} className="w-full">
+              {classroomLoading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <PlusCircle className="mr-2 size-4" />}
+              Create classroom
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Users className="size-5 text-primary" />My Classrooms</CardTitle>
+          <CardDescription>Share the join code or invite token with students in your sections.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {classrooms.length === 0 ? (
+            <div className="rounded-lg border p-4 text-sm text-muted-foreground">No classrooms yet. Create one to start inviting students.</div>
+          ) : classrooms.map((c) => (
+            <div key={c.id} className="rounded-lg border bg-card p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-semibold">{c.name}</p>
+                  <p className="text-sm text-muted-foreground">{c.subject?.name || 'No subject linked'}</p>
+                </div>
+                <Badge variant="outline">{c.members.length} students</Badge>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1"><KeyRound className="size-3" />{c.joinCode}</span>
+                <span className="rounded-full border px-2 py-1">Token: {c.inviteToken}</span>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 function TodayClassesPanel({
   loading,
   classes,

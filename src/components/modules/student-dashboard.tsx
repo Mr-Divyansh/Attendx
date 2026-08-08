@@ -20,6 +20,8 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Table,
@@ -49,6 +51,10 @@ import {
   TriangleAlert,
   RefreshCw,
   CheckCircle2,
+  Users,
+  KeyRound,
+  School,
+  Building2,
 } from 'lucide-react'
 
 // ── Types (mirrors API responses) ──────────────────────────────────────────
@@ -97,6 +103,18 @@ type MonthRow = {
 }
 
 type MonthlyResp = { weeks: MonthRow[] }
+
+type ClassroomRow = {
+  id: string
+  name: string
+  subject?: { name: string } | null
+  teacher?: { fullName: string } | null
+  joinCode: string
+  inviteToken: string
+  status: string
+}
+
+type ClassroomsResp = { classrooms: ClassroomRow[] }
 
 // ── Colors ─────────────────────────────────────────────────────────────────
 const COLOR_GOOD = '#22c55e' // green  >= 75
@@ -150,6 +168,9 @@ export function StudentDashboard() {
   const [subjects, setSubjects] = useState<SubjectRow[]>([])
   const [weekly, setWeekly] = useState<WeekRow[]>([])
   const [monthly, setMonthly] = useState<MonthRow[]>([])
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>([])
+  const [joinCode, setJoinCode] = useState('')
+  const [joining, setJoining] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -158,16 +179,18 @@ export function StudentDashboard() {
     setLoading(true)
     setError(null)
     try {
-      const [s, sub, w, m] = await Promise.all([
+      const [s, sub, w, m, c] = await Promise.all([
         apiFetch<StatsResp>('/api/student/stats'),
         apiFetch<SubjectsResp>('/api/student/subjects'),
         apiFetch<WeeklyResp>('/api/student/weekly'),
         apiFetch<MonthlyResp>('/api/student/monthly'),
+        apiFetch<ClassroomsResp>('/api/student/classrooms'),
       ])
       setStats(s)
       setSubjects(sub.subjects ?? [])
       setWeekly(w.week ?? [])
       setMonthly(m.weeks ?? [])
+      setClassrooms(c.classrooms ?? [])
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load dashboard')
     } finally {
@@ -184,6 +207,23 @@ export function StudentDashboard() {
     .toUpperCase()
 
   const atRiskSubjects = subjects.filter((s) => s.pct < 75)
+
+  const handleJoinClassroom = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setJoining(true)
+    try {
+      await apiFetch('/api/classrooms/join', {
+        method: 'POST',
+        body: JSON.stringify({ joinCode }),
+      })
+      setJoinCode('')
+      await load()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Unable to join classroom')
+    } finally {
+      setJoining(false)
+    }
+  }
 
   const scrollToId = (id: string) => {
     setActive(id)
@@ -277,6 +317,42 @@ export function StudentDashboard() {
             </>
           ) : null}
         </div>
+
+        <section id="section-classrooms" className="scroll-mt-24">
+          <Card>
+            <CardHeader>
+              <CardTitle>Classrooms</CardTitle>
+              <CardDescription>Join a classroom with a join code and view your teacher-managed attendance.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <form onSubmit={handleJoinClassroom} className="flex flex-col gap-3 sm:flex-row">
+                <Input value={joinCode} onChange={(e) => setJoinCode(e.target.value)} placeholder="Enter join code" className="max-w-sm" />
+                <Button type="submit" disabled={joining}>{joining ? 'Joining…' : 'Join Classroom'}</Button>
+              </form>
+              {classrooms.length === 0 ? (
+                <div className="rounded-lg border p-4 text-sm text-muted-foreground">You have not joined any classroom yet.</div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {classrooms.map((c) => (
+                    <div key={c.id} className="rounded-lg border bg-card p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-semibold">{c.name}</p>
+                          <p className="text-sm text-muted-foreground">{c.subject?.name || 'Subject pending'}</p>
+                        </div>
+                        <Badge variant="secondary">{c.status}</Badge>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1"><Users className="size-3.5" />{c.teacher?.fullName || 'Teacher pending'}</span>
+                        <span className="inline-flex items-center gap-1"><KeyRound className="size-3.5" />{c.joinCode}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
 
         {/* Subject-wise bar chart */}
         <section id="section-subjects" className="scroll-mt-24">
