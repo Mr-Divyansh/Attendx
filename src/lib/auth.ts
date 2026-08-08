@@ -225,10 +225,15 @@ export async function validateCsrfToken(headerToken?: string): Promise<boolean> 
   const store = await cookies()
   const cookieToken = store.get(CSRF_COOKIE)?.value
   if (!cookieToken || !headerToken) return false
-  return crypto.timingSafeEqual(
-    Buffer.from(cookieToken, 'hex'),
-    Buffer.from(headerToken, 'hex')
-  )
+
+  try {
+    const cookieBuf = Buffer.from(cookieToken, 'hex')
+    const headerBuf = Buffer.from(headerToken, 'hex')
+    if (cookieBuf.length !== headerBuf.length) return false
+    return crypto.timingSafeEqual(cookieBuf, headerBuf)
+  } catch {
+    return false
+  }
 }
 
 // ── Basic rate limiting for auth endpoints (login/register) ──
