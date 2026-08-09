@@ -1,7 +1,9 @@
 import { db } from '@/lib/db'
 import { getMinimumAttendancePercentage } from '@/lib/config'
 import { calcAttendancePct } from '@/lib/attendance'
-import { requireRole, json, errorResponse, AuthError } from '@/lib/auth'
+import { requireRole, json, errorResponse, AuthError,
+  handleRouteError,
+} from '@/lib/auth'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 
@@ -99,6 +101,6 @@ export async function GET() {
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
     console.error('[student/stats] error:', e)
-    return errorResponse('Internal server error', 500)
+    return handleRouteError(e, 'student/stats')
   }
 }

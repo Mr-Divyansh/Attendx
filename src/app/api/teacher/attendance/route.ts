@@ -8,6 +8,7 @@ import {
   errorResponse,
   AuthError,
   validateCsrfToken,
+  handleRouteError,
 } from '@/lib/auth'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest) {
     return json({ records, periods, editable, sectionId: subject.sectionId })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    throw e
+    return handleRouteError(e, 'teacher/attendance')
   }
 }
 
@@ -188,6 +189,6 @@ export async function POST(req: NextRequest) {
     return json({ saved: cleanEntries.length })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    throw e
+    return handleRouteError(e, 'teacher/attendance')
   }
 }

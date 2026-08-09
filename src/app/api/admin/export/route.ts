@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, errorResponse, AuthError } from '@/lib/auth'
+import { requireRole, errorResponse, AuthError,
+  handleRouteError,
+} from '@/lib/auth'
 
 // GET /api/admin/export — export attendance as CSV (text/csv).
 export async function GET(_req: NextRequest) {
@@ -39,7 +41,7 @@ export async function GET(_req: NextRequest) {
     })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/export')
   }
 }
 

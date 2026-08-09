@@ -7,6 +7,7 @@ import {
   errorResponse,
   AuthError,
   validateCsrfToken,
+  handleRouteError,
 } from '@/lib/auth'
 
 // GET /api/admin/timetable — list all timetable entries with relations.
@@ -41,7 +42,7 @@ export async function GET() {
     )
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/timetable')
   }
 }
 
@@ -110,6 +111,6 @@ export async function POST(req: NextRequest) {
     )
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/timetable')
   }
 }

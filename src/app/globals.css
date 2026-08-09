@@ -3,6 +3,33 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ==========================================================================
+   ATTENDX — GLOBAL THEME FILE
+   ==========================================================================
+   This is the ONE file to edit if you want to change the app's look.
+
+   Everything below is organised into two blocks:
+     :root   → LIGHT MODE colors
+     .dark   → DARK MODE colors
+
+   Each block is grouped into:
+     1. PRIMARY / BRAND COLOR   (buttons, links, active nav, focus rings)
+     2. BACKGROUND              (page background)
+     3. CARD COLOR               (cards, panels, dialogs, dropdowns)
+     4. TEXT COLOR               (foreground / muted text)
+     5. BORDER / INPUT COLOR
+     6. STATUS / CHART COLORS   (present/absent/late, chart lines)
+     7. SIDEBAR COLORS          (left nav in dashboards)
+
+   Colors use the oklch() format: oklch(lightness chroma hue).
+     - lightness: 0 (black) → 1 (white)
+     - chroma:    0 (grey, no color) → higher = more saturated
+     - hue:       0-360, e.g. ~162 = green, ~30 = orange, ~0 = red
+   To keep a neutral/professional look, background & border colors below
+   use chroma 0 (pure grey) — only the primary/accent and chart colors carry
+   actual color.
+   ========================================================================== */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -44,72 +71,103 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(0.99 0.005 160);
-  --foreground: oklch(0.16 0.02 165);
+  /* Corner rounding used by every card/button/input (rem). Lower = sharper,
+     more "serious SaaS"; higher = softer/friendlier. */
+  --radius: 0.5rem;
+
+  /* 1. PRIMARY / BRAND COLOR — buttons, links, active states, focus rings */
+  --primary: oklch(0.5 0.13 162);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.5 0.13 162);
+
+  /* 2. BACKGROUND — page background (light, neutral off-white) */
+  --background: oklch(0.985 0 0);
+  --foreground: oklch(0.17 0 0);
+
+  /* 3. CARD COLOR — cards, dialogs, dropdowns, popovers */
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.16 0.02 165);
+  --card-foreground: oklch(0.17 0 0);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.16 0.02 165);
-  --primary: oklch(0.62 0.15 162);
-  --primary-foreground: oklch(0.99 0.01 160);
-  --secondary: oklch(0.96 0.012 165);
-  --secondary-foreground: oklch(0.25 0.03 165);
-  --muted: oklch(0.96 0.01 165);
-  --muted-foreground: oklch(0.52 0.02 165);
-  --accent: oklch(0.95 0.03 165);
-  --accent-foreground: oklch(0.25 0.05 165);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.9 0.01 165);
-  --input: oklch(0.9 0.01 165);
-  --ring: oklch(0.62 0.15 162);
-  --chart-1: oklch(0.62 0.15 162);
-  --chart-2: oklch(0.6 0.14 200);
-  --chart-3: oklch(0.7 0.16 90);
-  --chart-4: oklch(0.65 0.2 30);
-  --chart-5: oklch(0.6 0.2 320);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.16 0.02 165);
-  --sidebar-primary: oklch(0.62 0.15 162);
-  --sidebar-primary-foreground: oklch(0.99 0.01 160);
-  --sidebar-accent: oklch(0.96 0.012 165);
-  --sidebar-accent-foreground: oklch(0.25 0.03 165);
-  --sidebar-border: oklch(0.9 0.01 165);
-  --sidebar-ring: oklch(0.62 0.15 162);
+  --popover-foreground: oklch(0.17 0 0);
+
+  /* 4. TEXT COLOR — secondary text, muted labels, subtle accents */
+  --secondary: oklch(0.96 0 0);
+  --secondary-foreground: oklch(0.22 0 0);
+  --muted: oklch(0.965 0 0);
+  --muted-foreground: oklch(0.47 0 0);
+  --accent: oklch(0.955 0 0);
+  --accent-foreground: oklch(0.22 0 0);
+  --destructive: oklch(0.577 0.22 27);
+
+  /* 5. BORDER / INPUT COLOR — keep subtle, neutral grey (no color tint) */
+  --border: oklch(0.9 0 0);
+  --input: oklch(0.9 0 0);
+
+  /* 6. STATUS / CHART COLORS — used for graphs and present/absent/late */
+  --chart-1: oklch(0.5 0.13 162);   /* present / good     — green   */
+  --chart-2: oklch(0.55 0.13 230);  /* neutral series     — blue    */
+  --chart-3: oklch(0.7 0.15 90);    /* late / warning     — amber   */
+  --chart-4: oklch(0.58 0.2 25);    /* absent / at-risk   — red     */
+  --chart-5: oklch(0.55 0.12 290);  /* extra series        — violet */
+
+  /* 7. SIDEBAR COLORS — left navigation in dashboards */
+  --sidebar: oklch(0.98 0 0);
+  --sidebar-foreground: oklch(0.17 0 0);
+  --sidebar-primary: oklch(0.5 0.13 162);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.94 0 0);
+  --sidebar-accent-foreground: oklch(0.22 0 0);
+  --sidebar-border: oklch(0.9 0 0);
+  --sidebar-ring: oklch(0.5 0.13 162);
 }
 
 .dark {
-  --background: oklch(0.16 0.015 165);
-  --foreground: oklch(0.97 0.005 160);
-  --card: oklch(0.21 0.02 165);
-  --card-foreground: oklch(0.97 0.005 160);
-  --popover: oklch(0.21 0.02 165);
-  --popover-foreground: oklch(0.97 0.005 160);
-  --primary: oklch(0.7 0.16 162);
-  --primary-foreground: oklch(0.16 0.02 165);
-  --secondary: oklch(0.27 0.02 165);
-  --secondary-foreground: oklch(0.97 0.005 160);
-  --muted: oklch(0.27 0.02 165);
-  --muted-foreground: oklch(0.7 0.02 165);
-  --accent: oklch(0.3 0.03 165);
-  --accent-foreground: oklch(0.97 0.005 160);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.7 0.16 162);
-  --chart-1: oklch(0.7 0.16 162);
-  --chart-2: oklch(0.65 0.15 200);
-  --chart-3: oklch(0.75 0.17 90);
-  --chart-4: oklch(0.7 0.2 30);
-  --chart-5: oklch(0.65 0.2 320);
-  --sidebar: oklch(0.21 0.02 165);
-  --sidebar-foreground: oklch(0.97 0.005 160);
-  --sidebar-primary: oklch(0.7 0.16 162);
-  --sidebar-primary-foreground: oklch(0.16 0.02 165);
-  --sidebar-accent: oklch(0.27 0.02 165);
-  --sidebar-accent-foreground: oklch(0.97 0.005 160);
-  --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.7 0.16 162);
+  /* 1. PRIMARY / BRAND COLOR — same green accent, brightened for dark bg */
+  --primary: oklch(0.68 0.14 162);
+  --primary-foreground: oklch(0.14 0 0);
+  --ring: oklch(0.68 0.14 162);
+
+  /* 2. BACKGROUND — neutral near-black charcoal. chroma is 0 on purpose:
+     this used to be a greenish dark background (chroma tied to the hue
+     165 green), which looked wrong. Kept fully neutral grey now. */
+  --background: oklch(0.15 0 0);
+  --foreground: oklch(0.95 0 0);
+
+  /* 3. CARD COLOR — slightly lighter charcoal panels, still neutral */
+  --card: oklch(0.19 0 0);
+  --card-foreground: oklch(0.95 0 0);
+  --popover: oklch(0.19 0 0);
+  --popover-foreground: oklch(0.95 0 0);
+
+  /* 4. TEXT COLOR */
+  --secondary: oklch(0.24 0 0);
+  --secondary-foreground: oklch(0.95 0 0);
+  --muted: oklch(0.23 0 0);
+  --muted-foreground: oklch(0.66 0 0);
+  --accent: oklch(0.26 0 0);
+  --accent-foreground: oklch(0.95 0 0);
+  --destructive: oklch(0.7 0.19 22);
+
+  /* 5. BORDER / INPUT COLOR — subtle neutral white-alpha border */
+  --border: oklch(1 0 0 / 11%);
+  --input: oklch(1 0 0 / 14%);
+
+  /* 6. STATUS / CHART COLORS */
+  --chart-1: oklch(0.68 0.14 162);
+  --chart-2: oklch(0.65 0.13 230);
+  --chart-3: oklch(0.75 0.16 90);
+  --chart-4: oklch(0.66 0.2 25);
+  --chart-5: oklch(0.62 0.14 290);
+
+  /* 7. SIDEBAR COLORS */
+  --sidebar: oklch(0.17 0 0);
+  --sidebar-foreground: oklch(0.95 0 0);
+  --sidebar-primary: oklch(0.68 0.14 162);
+  --sidebar-primary-foreground: oklch(0.14 0 0);
+  --sidebar-accent: oklch(0.24 0 0);
+  --sidebar-accent-foreground: oklch(0.95 0 0);
+  --sidebar-border: oklch(1 0 0 / 11%);
+  --sidebar-ring: oklch(0.68 0.14 162);
 }
 
 @layer base {
@@ -139,27 +197,11 @@
     background: var(--primary);
   }
 
-  /* Glassmorphism card */
+  /* Sticky header surface — plain, near-opaque background with a soft blur.
+     Kept subtle on purpose (no heavy glassmorphism / no visible tint). */
   .glass {
-    background: color-mix(in oklch, var(--card) 70%, transparent);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
-  }
-
-  /* Gradient text */
-  .text-gradient {
-    background: linear-gradient(135deg, var(--primary), var(--chart-2));
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
-  .bg-mesh {
-    background-image:
-      radial-gradient(at 20% 20%, color-mix(in oklch, var(--primary) 18%, transparent) 0px, transparent 50%),
-      radial-gradient(at 80% 0%, color-mix(in oklch, var(--chart-2) 14%, transparent) 0px, transparent 50%),
-      radial-gradient(at 0% 80%, color-mix(in oklch, var(--chart-3) 12%, transparent) 0px, transparent 50%);
+    background: color-mix(in oklch, var(--background) 92%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
   }
 }
-

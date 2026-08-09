@@ -9,6 +9,7 @@ import {
   hashPassword,
   AuthError,
   validateCsrfToken,
+  handleRouteError,
 } from '@/lib/auth'
 
 // POST /api/personal/change-password — verify current, set new
@@ -45,6 +46,6 @@ export async function POST(req: NextRequest) {
     return json({ ok: true })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    throw e
+    return handleRouteError(e, 'personal/change-password')
   }
 }

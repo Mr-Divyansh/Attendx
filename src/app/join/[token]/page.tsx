@@ -60,7 +60,7 @@ export default function JoinClassroomPage() {
   }
 
   return (
-    <div className="min-h-screen bg-mesh flex items-center justify-center p-6">
+    <div className="min-h-screen bg-muted/30 flex items-center justify-center p-6">
       <Card className="w-full max-w-md shadow-lg border-primary/10">
         <CardHeader className="text-center space-y-3">
           <div className="mx-auto size-14 rounded-2xl bg-primary/10 text-primary grid place-items-center">

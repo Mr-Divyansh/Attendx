@@ -759,7 +759,7 @@ export function StudentDashboard() {
 
         {/* Summary footer card */}
         {!loading && stats && stats.counts.total > 0 && subjects.length > 0 && (
-          <Card className="bg-gradient-to-br from-primary/5 via-card to-card">
+          <Card className="bg-card">
             <CardContent className="pt-6">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <div className="size-12 rounded-xl bg-primary/10 text-primary grid place-items-center shrink-0">
@@ -810,12 +810,8 @@ function WelcomeBanner({
   loading: boolean
 }) {
   return (
-    <Card className="relative overflow-hidden border-primary/30 bg-gradient-to-br from-primary/10 via-card to-card">
-      <div
-        className="absolute inset-0 bg-mesh opacity-40 pointer-events-none"
-        aria-hidden
-      />
-      <CardContent className="relative pt-6">
+    <Card className="border-primary/20 bg-card">
+      <CardContent className="pt-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -825,8 +821,7 @@ function WelcomeBanner({
               <Skeleton className="h-9 w-56 mt-2" />
             ) : (
               <h2 className="text-2xl md:text-3xl font-bold tracking-tight mt-1">
-                WELCOME,{' '}
-                <span className="text-gradient">{firstName}</span>
+                Welcome, <span className="text-primary">{firstName}</span>
               </h2>
             )}
             <p className="text-sm text-muted-foreground mt-1.5">

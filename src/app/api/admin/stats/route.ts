@@ -1,5 +1,7 @@
 import { db } from '@/lib/db'
-import { requireRole, json, errorResponse, AuthError } from '@/lib/auth'
+import { requireRole, json, errorResponse, AuthError,
+  handleRouteError,
+} from '@/lib/auth'
 
 // GET /api/admin/stats — high-level counts for the admin overview cards.
 export async function GET() {
@@ -14,6 +16,6 @@ export async function GET() {
     return json({ students, teachers, subjects, attendanceRecords })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/stats')
   }
 }

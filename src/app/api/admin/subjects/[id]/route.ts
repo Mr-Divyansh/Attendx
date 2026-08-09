@@ -7,6 +7,7 @@ import {
   errorResponse,
   AuthError,
   validateCsrfToken,
+  handleRouteError,
 } from '@/lib/auth'
 
 // PUT /api/admin/subjects/[id] — update subject fields.
@@ -72,7 +73,7 @@ export async function PUT(
     })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/subjects/[id]')
   }
 }
 
@@ -91,6 +92,6 @@ export async function DELETE(
     return json({ ok: true })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/subjects/[id]')
   }
 }

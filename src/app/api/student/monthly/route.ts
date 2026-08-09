@@ -2,7 +2,9 @@
 // GET /api/student/monthly → [{ week: 'W1', pct }] for the last 4 weeks (W1 = oldest, W4 = current).
 // pct = (present+late) / total per week.
 import { db } from '@/lib/db'
-import { requireRole, json, errorResponse, AuthError } from '@/lib/auth'
+import { requireRole, json, errorResponse, AuthError,
+  handleRouteError,
+} from '@/lib/auth'
 
 function pct(attended: number, total: number): number {
   if (total <= 0) return 0
@@ -85,6 +87,6 @@ export async function GET() {
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
     console.error('[student/monthly] error:', e)
-    return errorResponse('Internal server error', 500)
+    return handleRouteError(e, 'student/monthly')
   }
 }

@@ -7,6 +7,7 @@ import {
   errorResponse,
   AuthError,
   validateCsrfToken,
+  handleRouteError,
 } from '@/lib/auth'
 
 // GET /api/admin/sections
@@ -34,7 +35,7 @@ export async function GET() {
     )
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/sections')
   }
 }
 
@@ -74,6 +75,6 @@ export async function POST(req: NextRequest) {
     )
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/sections')
   }
 }

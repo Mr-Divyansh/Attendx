@@ -2,7 +2,9 @@
 // GET /api/student/subjects → [{ subjectId, code, name, total, present, absent, late, pct }]
 // Sorted by pct ascending (at-risk first). Attended = present + late.
 import { db } from '@/lib/db'
-import { requireRole, json, errorResponse, AuthError } from '@/lib/auth'
+import { requireRole, json, errorResponse, AuthError,
+  handleRouteError,
+} from '@/lib/auth'
 
 function pct(attended: number, total: number): number {
   if (total <= 0) return 0
@@ -71,6 +73,6 @@ export async function GET() {
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
     console.error('[student/subjects] error:', e)
-    return errorResponse('Internal server error', 500)
+    return handleRouteError(e, 'student/subjects')
   }
 }

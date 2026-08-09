@@ -3,7 +3,9 @@
 // total = timetable periods for that day-of-week in the student's section.
 // attended = number of attendance records (present+late) on that date.
 import { db } from '@/lib/db'
-import { requireRole, json, errorResponse, AuthError } from '@/lib/auth'
+import { requireRole, json, errorResponse, AuthError,
+  handleRouteError,
+} from '@/lib/auth'
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
 
@@ -93,6 +95,6 @@ export async function GET() {
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
     console.error('[student/weekly] error:', e)
-    return errorResponse('Internal server error', 500)
+    return handleRouteError(e, 'student/weekly')
   }
 }

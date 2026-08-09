@@ -7,6 +7,7 @@ import {
   errorResponse,
   AuthError,
   validateCsrfToken,
+  handleRouteError,
 } from '@/lib/auth'
 
 const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -39,7 +40,7 @@ export async function GET() {
     )
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    throw e
+    return handleRouteError(e, 'personal/timetable')
   }
 }
 
@@ -85,6 +86,6 @@ export async function POST(req: NextRequest) {
     if (msg.includes('Unique constraint')) {
       return errorResponse('A period with this day/period already exists', 409)
     }
-    throw e
+    return handleRouteError(e, 'personal/timetable')
   }
 }

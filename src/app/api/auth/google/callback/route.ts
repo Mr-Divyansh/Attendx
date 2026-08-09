@@ -6,6 +6,7 @@ import {
   hashPassword,
   issueCsrfToken,
   errorResponse,
+  handleRouteError,
 } from '@/lib/auth'
 import {
   exchangeGoogleCode,
@@ -92,62 +93,67 @@ async function upsertGoogleStudent(profile: {
 }
 
 export async function GET(req: NextRequest) {
-  const appUrl = getAppUrl()
-  const code = req.nextUrl.searchParams.get('code')
-  const state = req.nextUrl.searchParams.get('state')
-  const oauthError = req.nextUrl.searchParams.get('error')
-
-  if (oauthError) {
-    return Response.redirect(`${appUrl}/?auth_error=${encodeURIComponent(oauthError)}`)
-  }
-
-  if (!code || !state) {
-    return Response.redirect(`${appUrl}/?auth_error=missing_code`)
-  }
-
-  const store = await cookies()
-  const cookieState = store.get(OAUTH_STATE_COOKIE)?.value
-  store.delete(OAUTH_STATE_COOKIE)
-
-  if (!cookieState || cookieState !== state) {
-    return Response.redirect(`${appUrl}/?auth_error=invalid_state`)
-  }
-
-  const parsed = verifyOAuthState(state)
-  if (!parsed || parsed.role !== 'STUDENT') {
-    return Response.redirect(`${appUrl}/?auth_error=invalid_state`)
-  }
-
   try {
-    const profile = await exchangeGoogleCode(code)
-    const user = await upsertGoogleStudent(profile)
-    const student = user.student!
+    const appUrl = getAppUrl()
+    const code = req.nextUrl.searchParams.get('code')
+    const state = req.nextUrl.searchParams.get('state')
+    const oauthError = req.nextUrl.searchParams.get('error')
 
-    const needsProfile =
-      !student.profileComplete ||
-      student.rollNo === 'PENDING' ||
-      !student.studentType
+    if (oauthError) {
+      return Response.redirect(`${appUrl}/?auth_error=${encodeURIComponent(oauthError)}`)
+    }
 
-    await createCollegeSession({
-      id: user.id,
-      email: user.email,
-      role: 'STUDENT',
-    })
-    await issueCsrfToken()
+    if (!code || !state) {
+      return Response.redirect(`${appUrl}/?auth_error=missing_code`)
+    }
 
-    const redirect = needsProfile
-      ? `${appUrl}/?student_setup=1`
-      : `${appUrl}/?student_login=1`
-    return Response.redirect(redirect)
+    const store = await cookies()
+    const cookieState = store.get(OAUTH_STATE_COOKIE)?.value
+    store.delete(OAUTH_STATE_COOKIE)
+
+    if (!cookieState || cookieState !== state) {
+      return Response.redirect(`${appUrl}/?auth_error=invalid_state`)
+    }
+
+    const parsed = verifyOAuthState(state)
+    if (!parsed || parsed.role !== 'STUDENT') {
+      return Response.redirect(`${appUrl}/?auth_error=invalid_state`)
+    }
+
+    try {
+      const profile = await exchangeGoogleCode(code)
+      const user = await upsertGoogleStudent(profile)
+      const student = user.student!
+
+      const needsProfile =
+        !student.profileComplete ||
+        student.rollNo === 'PENDING' ||
+        !student.studentType
+
+      await createCollegeSession({
+        id: user.id,
+        email: user.email,
+        role: 'STUDENT',
+      })
+      await issueCsrfToken()
+
+      const redirect = needsProfile
+        ? `${appUrl}/?student_setup=1`
+        : `${appUrl}/?student_login=1`
+      return Response.redirect(redirect)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'oauth_failed'
+      if (msg === 'ROLE_CONFLICT') {
+        return Response.redirect(`${appUrl}/?auth_error=role_conflict`)
+      }
+      if (msg === 'DISABLED') {
+        return Response.redirect(`${appUrl}/?auth_error=account_disabled`)
+      }
+      console.error('[google/callback]', e)
+      return Response.redirect(`${appUrl}/?auth_error=oauth_failed`)
+    }
+
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'oauth_failed'
-    if (msg === 'ROLE_CONFLICT') {
-      return Response.redirect(`${appUrl}/?auth_error=role_conflict`)
-    }
-    if (msg === 'DISABLED') {
-      return Response.redirect(`${appUrl}/?auth_error=account_disabled`)
-    }
-    console.error('[google/callback]', e)
-    return Response.redirect(`${appUrl}/?auth_error=oauth_failed`)
+    return handleRouteError(e, 'auth/google/callback')
   }
 }

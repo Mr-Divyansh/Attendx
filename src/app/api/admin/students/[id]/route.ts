@@ -8,6 +8,7 @@ import {
   hashPassword,
   AuthError,
   validateCsrfToken,
+  handleRouteError,
 } from '@/lib/auth'
 
 // PUT /api/admin/students/[id] — update a student (and optionally their email/password).
@@ -93,7 +94,7 @@ export async function PUT(
     })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/students/[id]')
   }
 }
 
@@ -116,6 +117,6 @@ export async function DELETE(
     return json({ ok: true })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/students/[id]')
   }
 }

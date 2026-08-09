@@ -8,6 +8,7 @@ import {
   hashPassword,
   AuthError,
   validateCsrfToken,
+  handleRouteError,
 } from '@/lib/auth'
 
 // GET /api/admin/teachers — list teachers with email + department.
@@ -35,7 +36,7 @@ export async function GET() {
     )
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/teachers')
   }
 }
 
@@ -94,6 +95,6 @@ export async function POST(req: NextRequest) {
     )
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/teachers')
   }
 }

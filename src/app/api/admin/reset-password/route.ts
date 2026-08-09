@@ -8,6 +8,7 @@ import {
   hashPassword,
   AuthError,
   validateCsrfToken,
+  handleRouteError,
 } from '@/lib/auth'
 
 // POST /api/admin/reset-password — admin resets any user's password.
@@ -39,6 +40,6 @@ export async function POST(req: NextRequest) {
     return json({ ok: true })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/reset-password')
   }
 }

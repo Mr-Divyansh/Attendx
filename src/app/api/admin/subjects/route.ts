@@ -7,6 +7,7 @@ import {
   errorResponse,
   AuthError,
   validateCsrfToken,
+  handleRouteError,
 } from '@/lib/auth'
 
 // GET /api/admin/subjects — list subjects with related semester/section/dept/teacher.
@@ -40,7 +41,7 @@ export async function GET() {
     )
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/subjects')
   }
 }
 
@@ -104,6 +105,6 @@ export async function POST(req: NextRequest) {
     )
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/subjects')
   }
 }

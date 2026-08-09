@@ -285,28 +285,31 @@ export function errorResponse(message: string, status = 400) {
  */
 export function handleRouteError(e: unknown, context: string): Response {
   const message = e instanceof Error ? e.message : String(e)
+  // Prisma errors carry a `.code` (e.g. "P1001") separately from `.message`,
+  // and the code isn't always present in the message text — check both.
+  const code = (e as { code?: string } | null)?.code || ''
   console.error(`[${context}] error:`, e)
 
   // Prisma P1000/P1001/P1003 — cannot reach / authenticate with the database
-  if (message.includes('P1001') || message.includes('P1003')) {
+  if (code === 'P1001' || code === 'P1003' || message.includes('P1001') || message.includes('P1003')) {
     return errorResponse(
       'Database is unreachable. Check the DATABASE_URL and that the database server is running.',
       503
     )
   }
   // Prisma P1000 — generic connection error
-  if (message.includes('P1000')) {
+  if (code === 'P1000' || message.includes('P1000')) {
     return errorResponse('Database connection failed. Please try again in a few minutes.', 503)
   }
   // Prisma P2021 — table or column does not exist (schema not pushed)
-  if (message.includes('P2021')) {
+  if (code === 'P2021' || message.includes('P2021')) {
     return errorResponse(
       'Database schema is out of date. The administrator needs to run `npx prisma db push` and redeploy.',
       503
     )
   }
   // Prisma P2002 — unique constraint violation
-  if (message.includes('P2002')) {
+  if (code === 'P2002' || message.includes('P2002')) {
     return errorResponse('A record with this value already exists.', 409)
   }
 

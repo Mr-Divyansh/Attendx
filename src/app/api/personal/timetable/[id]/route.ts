@@ -7,6 +7,7 @@ import {
   errorResponse,
   AuthError,
   validateCsrfToken,
+  handleRouteError,
 } from '@/lib/auth'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -54,7 +55,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     if (msg.includes('Unique constraint')) {
       return errorResponse('A period with this day/period already exists', 409)
     }
-    throw e
+    return handleRouteError(e, 'personal/timetable/[id]')
   }
 }
 
@@ -76,6 +77,6 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
     return json({ ok: true })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    throw e
+    return handleRouteError(e, 'personal/timetable/[id]')
   }
 }

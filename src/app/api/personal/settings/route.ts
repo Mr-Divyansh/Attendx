@@ -7,6 +7,7 @@ import {
   errorResponse,
   AuthError,
   validateCsrfToken,
+  handleRouteError,
 } from '@/lib/auth'
 
 // GET /api/personal/settings
@@ -34,7 +35,7 @@ export async function GET() {
     })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    throw e
+    return handleRouteError(e, 'personal/settings')
   }
 }
 
@@ -97,6 +98,6 @@ export async function PUT(req: NextRequest) {
     })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    throw e
+    return handleRouteError(e, 'personal/settings')
   }
 }

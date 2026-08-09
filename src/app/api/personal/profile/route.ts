@@ -7,6 +7,7 @@ import {
   errorResponse,
   AuthError,
   validateCsrfToken,
+  handleRouteError,
 } from '@/lib/auth'
 
 // PUT /api/personal/profile — update fullName (and optionally avatarUrl)
@@ -56,6 +57,6 @@ export async function PUT(req: NextRequest) {
     })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    throw e
+    return handleRouteError(e, 'personal/profile')
   }
 }

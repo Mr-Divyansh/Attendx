@@ -121,15 +121,15 @@ export function Landing() {
       </header>
 
       {/* Hero */}
-      <section className="relative overflow-hidden bg-mesh">
+      <section className="relative overflow-hidden border-b bg-muted/30">
         <div className="container mx-auto px-4 py-16 md:py-24 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border bg-card/60 px-4 py-1.5 text-xs font-medium text-muted-foreground mb-6">
+          <div className="inline-flex items-center gap-2 rounded-full border bg-card px-4 py-1.5 text-xs font-medium text-muted-foreground mb-6">
             <CheckCircle2 className="size-3.5 text-primary" />
             Next.js · Prisma · Tailwind · React
           </div>
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight max-w-4xl mx-auto">
             Smart Attendance Management for{' '}
-            <span className="text-gradient">Students & Teachers</span>
+            <span className="text-primary">Students & Teachers</span>
           </h1>
           <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
             A modern attendance platform with clean role-based workflows for
@@ -152,7 +152,7 @@ export function Landing() {
                 onClick={() => openLogin(c.role)}
                 className="group text-left"
               >
-                <Card className="h-full p-5 border-transparent hover:shadow-xl hover:-translate-y-1 transition-all duration-200 hover:border-primary/40 cursor-pointer">
+                <Card className="h-full p-5 transition-colors duration-150 hover:border-primary/40 hover:bg-accent/40 cursor-pointer">
                   <div
                     className={`size-11 rounded-lg bg-primary/10 grid place-items-center mb-4 ${c.accent}`}
                   >
@@ -160,7 +160,7 @@ export function Landing() {
                   </div>
                   <h3 className="font-semibold text-base">{c.title}</h3>
                   <p className="text-sm text-muted-foreground mt-1">{c.desc}</p>
-                  <div className="mt-4 text-sm font-medium text-primary group-hover:gap-2 inline-flex items-center gap-1 transition-all">
+                  <div className="mt-4 text-sm font-medium text-primary inline-flex items-center gap-1">
                     Enter →
                   </div>
                 </Card>

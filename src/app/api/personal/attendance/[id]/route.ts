@@ -6,6 +6,7 @@ import {
   errorResponse,
   AuthError,
   validateCsrfToken,
+  handleRouteError,
 } from '@/lib/auth'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -28,6 +29,6 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
     return json({ ok: true })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    throw e
+    return handleRouteError(e, 'personal/attendance/[id]')
   }
 }

@@ -229,7 +229,7 @@ export function AuthModal() {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="sm:max-w-lg gap-0 p-0 overflow-hidden">
-        <div className="bg-gradient-to-br from-primary/10 via-background to-chart-2/5 px-6 pt-6 pb-4 border-b">
+        <div className="bg-muted/40 px-6 pt-6 pb-4 border-b">
           <DialogHeader className="text-left space-y-2">
             <div className="flex items-center gap-3">
               {step === 'profile' ? (

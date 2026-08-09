@@ -7,6 +7,7 @@ import {
   AuthError,
   destroySession,
   validateCsrfToken,
+  handleRouteError,
 } from '@/lib/auth'
 
 // DELETE /api/personal/account — delete the PersonalUser (cascades to all related data)
@@ -21,6 +22,6 @@ export async function DELETE(req: NextRequest) {
     return json({ ok: true })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    throw e
+    return handleRouteError(e, 'personal/account')
   }
 }

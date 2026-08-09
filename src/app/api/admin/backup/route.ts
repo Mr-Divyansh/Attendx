@@ -1,5 +1,7 @@
 import { db } from '@/lib/db'
-import { requireRole, json, errorResponse, AuthError } from '@/lib/auth'
+import { requireRole, json, errorResponse, AuthError,
+  handleRouteError,
+} from '@/lib/auth'
 
 // GET /api/admin/backup — return a JSON dump of every table (simulates mysqldump).
 export async function GET() {
@@ -49,6 +51,6 @@ export async function GET() {
     })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Server error', 500)
+    return handleRouteError(e, 'admin/backup')
   }
 }
