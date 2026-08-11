@@ -120,15 +120,20 @@ export function Landing() {
       </header>
 
       {/* Hero */}
-      <section className="border-b bg-muted/40">
-        <div className="mx-auto w-full max-w-6xl px-4 py-16 md:py-24 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border bg-card px-4 py-1.5 text-xs font-medium text-muted-foreground mb-6">
+      <section className="relative border-b bg-muted/40 overflow-hidden">
+        {/* Decorative glow + blueprint grid (purely visual) */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 hero-glow" />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 hero-grid" />
+        <div className="relative mx-auto w-full max-w-6xl px-4 py-20 md:py-28 text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border bg-card px-4 py-1.5 text-xs font-medium text-muted-foreground mb-6 shadow-sm">
             <CheckCircle2 className="size-3.5 text-primary" />
             Student attendance, managed properly
           </div>
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight max-w-3xl mx-auto">
+          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight max-w-3xl mx-auto leading-[1.08]">
             Smart attendance for{' '}
-            <span className="text-primary">students &amp; teachers</span>
+            <span className="bg-gradient-to-r from-primary via-chart-2 to-chart-5 bg-clip-text text-transparent">
+              students &amp; teachers
+            </span>
           </h1>
           <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
             AttendX is a clean, secure platform where teachers mark attendance and
@@ -138,7 +143,7 @@ export function Landing() {
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Button
               onClick={() => openLogin('STUDENT')}
-              className="min-w-[200px] h-11"
+              className="min-w-[200px] h-11 shadow-sm"
             >
               Continue as Student
             </Button>
@@ -149,6 +154,29 @@ export function Landing() {
             >
               Teacher access
             </Button>
+          </div>
+          {/* How it works (factual) */}
+          <div className="mt-14 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto text-left">
+            {[
+              { n: '1', t: 'Sign in', d: 'As a student or teacher with email, password or Google.' },
+              { n: '2', t: 'Mark & track', d: 'Teachers mark attendance; students see it instantly.' },
+              { n: '3', t: 'Stay on target', d: 'Analytics flag low attendance before it is a problem.' },
+            ].map((s) => (
+              <div
+                key={s.n}
+                className="flex items-start gap-3 rounded-xl border bg-card/70 px-4 py-3.5"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                  {s.n}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold">{s.t}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                    {s.d}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -250,6 +278,12 @@ export function Landing() {
               Privacy Policy
             </span>
           </nav>
+        </div>
+        <div className="border-t bg-background/40">
+          <p className="mx-auto w-full max-w-6xl px-4 py-3 text-center text-xs text-muted-foreground">
+            © {new Date().getFullYear()} AttendX. Built for classrooms — attendance
+            you can trust.
+          </p>
         </div>
       </footer>
     </div>

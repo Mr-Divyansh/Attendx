@@ -229,6 +229,33 @@
     -webkit-backdrop-filter: blur(6px);
   }
 
+  /* Landing hero: soft radial glow behind the headline. */
+  .hero-glow {
+    background: radial-gradient(
+      60% 50% at 50% 0%,
+      oklch(var(--primary) / 0.14),
+      transparent 70%
+    );
+  }
+
+  /* Landing hero: faint blueprint grid, fading out toward the bottom. */
+  .hero-grid {
+    background-image:
+      linear-gradient(
+        to right,
+        oklch(var(--foreground) / 0.05) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        oklch(var(--foreground) / 0.05) 1px,
+        transparent 1px
+      );
+    background-size: 36px 36px;
+    -webkit-mask-image: radial-gradient(70% 60% at 50% 25%, black, transparent);
+    mask-image: radial-gradient(70% 60% at 50% 25%, black, transparent);
+  }
+
   /* Card surface used for auth pages / modals — clean, single card. */
   .surface-card {
     background: var(--card);
