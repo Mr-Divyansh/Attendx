@@ -99,6 +99,13 @@ type Classroom = {
     id: string
     status: string
     student: { fullName: string; rollNo: string; userId?: string }
+    attendance?: {
+      present: number
+      late: number
+      absent: number
+      total: number
+      pct: number | null
+    }
   }>
 }
 
@@ -230,6 +237,39 @@ export function TeacherDashboard() {
   const [sections, setSections] = useState<Section[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [students, setStudents] = useState<Student[]>([])
+
+  // ── classroom form subjects (independent of the mark-attendance flow) ──
+  // The 6-step flow only loads subjects after a semester+section is picked, so
+  // the create-classroom dropdown would be empty if the teacher opens the
+  // Classrooms tab directly. Load subjects from the first available section.
+  const [classroomSubjects, setClassroomSubjects] = useState<Subject[]>([])
+  const loadClassroomSubjects = useCallback(async () => {
+    try {
+      let list = semesters
+      if (list.length === 0) {
+        list = await apiFetch<Semester[]>('/api/teacher/semesters')
+        setSemesters(list)
+      }
+      const sem = list[0]
+      if (!sem) return
+      const secList = await apiFetch<Section[]>(
+        `/api/teacher/sections?semesterId=${sem.id}`
+      )
+      const sec = secList[0]
+      if (!sec) return
+      const subList = await apiFetch<Subject[]>(
+        `/api/teacher/subjects?sectionId=${sec.id}`
+      )
+      setClassroomSubjects(subList)
+    } catch {
+      /* ignore */
+    }
+  }, [semesters])
+  useEffect(() => {
+    if (active === 'classrooms' && classroomSubjects.length === 0) {
+      loadClassroomSubjects()
+    }
+  }, [active, classroomSubjects.length, loadClassroomSubjects])
 
   // ── attendance fetch result ──
   const [periods, setPeriods] = useState<PeriodInfo[]>([])
@@ -587,7 +627,7 @@ export function TeacherDashboard() {
             classroomYear={classroomYear}
             classroomSubjectId={classroomSubjectId}
             classroomLoading={classroomLoading}
-            subjects={subjects}
+            subjects={classroomSubjects}
             onNameChange={setClassroomName}
             onCourseChange={setClassroomCourse}
             onSectionChange={setClassroomSection}
@@ -1268,6 +1308,26 @@ function ClassroomsPanel({
     toast.success('Invite link copied!')
   }
 
+  // Send a low-attendance warning to an approved classroom student.
+  const [advising, setAdvising] = useState<string | null>(null)
+  const handleAdvise = async (studentUserId: string, name: string) => {
+    setAdvising(studentUserId)
+    try {
+      await apiFetch('/api/teacher/advice', {
+        method: 'POST',
+        body: JSON.stringify({
+          studentUserId,
+          message: `Hello ${name}, your attendance in this classroom is below the 75% minimum. Please attend classes regularly to stay on track.`,
+        }),
+      })
+      toast.success(`Advice sent to ${name}`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to send advice')
+    } finally {
+      setAdvising(null)
+    }
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
       <Card>
@@ -1351,18 +1411,50 @@ function ClassroomsPanel({
                         <span>
                           {m.student.rollNo} — {m.student.fullName}
                         </span>
-                        {m.status === 'PENDING' ? (
-                          <div className="flex gap-1">
-                            <Button size="sm" variant="outline" onClick={() => onApproveMember(m.id, 'approve')}>
-                              Approve
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => onApproveMember(m.id, 'reject')}>
-                              Reject
-                            </Button>
-                          </div>
-                        ) : (
-                          <Badge variant="secondary">{m.status}</Badge>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {m.status === 'ACTIVE' && m.attendance && m.attendance.total > 0 && (
+                            <Badge
+                              className={
+                                (m.attendance.pct ?? 0) >= 75
+                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15'
+                                  : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15'
+                              }
+                              title={`${m.attendance.present} present, ${m.attendance.late} late, ${m.attendance.absent} absent · ${m.attendance.total} total`}
+                            >
+                              {m.attendance.pct}%
+                            </Badge>
+                          )}
+                          {m.status === 'PENDING' ? (
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="outline" onClick={() => onApproveMember(m.id, 'approve')}>
+                                Approve
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => onApproveMember(m.id, 'reject')}>
+                                Reject
+                              </Button>
+                            </div>
+                          ) : (
+                            <Badge variant="secondary">{m.status}</Badge>
+                          )}
+                          {m.status === 'ACTIVE' &&
+                            m.student.userId &&
+                            m.attendance?.pct != null &&
+                            m.attendance.pct < 75 && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={advising === m.id}
+                                onClick={() =>
+                                  handleAdvise(m.student.userId!, m.student.fullName)
+                                }
+                              >
+                                {advising === m.id ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : null}
+                                Advise
+                              </Button>
+                            )}
+                        </div>
                       </div>
                     ))}
                 </div>

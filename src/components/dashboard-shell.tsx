@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 import { useAuth, type View } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -11,9 +13,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Moon, Sun, LogOut, ChevronDown } from 'lucide-react'
+import { Moon, Sun, LogOut, ChevronDown, KeyRound } from 'lucide-react'
 import Image from 'next/image'
 import { useTheme } from 'next-themes'
+import { ChangePasswordDialog } from '@/components/change-password-dialog'
 
 export type NavItem = {
   id: string
@@ -38,6 +41,7 @@ export function DashboardShell({
 }) {
   const { user, logout } = useAuth()
   const { setTheme } = useTheme()
+  const [passwordOpen, setPasswordOpen] = useState(false)
 
   const initials = (user?.name || 'U')
     .split(' ')
@@ -136,6 +140,10 @@ export function DashboardShell({
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setPasswordOpen(true)}>
+                  <KeyRound className="size-4 mr-2" />
+                  Change password
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => logout()}
                   className="text-destructive focus:text-destructive"
@@ -145,6 +153,7 @@ export function DashboardShell({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <ChangePasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} />
           </div>
         </header>
 

@@ -26,7 +26,11 @@ function HomeContent() {
       refresh().then(() => openLogin('STUDENT', { profileSetup: true }))
       router.replace('/')
     }
-    if (searchParams.get('student_login') === '1') {
+    if (searchParams.get('teacher_setup') === '1') {
+      refresh().then(() => openLogin('TEACHER', { profileSetup: true }))
+      router.replace('/')
+    }
+    if (searchParams.get('student_login') === '1' || searchParams.get('teacher_login') === '1') {
       toast.success('Signed in successfully!')
       router.replace('/')
     }

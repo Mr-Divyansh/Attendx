@@ -3,7 +3,6 @@ import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import {
   createCollegeSession,
-  hashPassword,
   issueCsrfToken,
   errorResponse,
   handleRouteError,
@@ -15,11 +14,9 @@ import {
   OAUTH_STATE_COOKIE,
 } from '@/lib/oauth'
 
-async function upsertGoogleStudent(profile: {
-  sub: string
-  email: string
-  name: string
-}) {
+type GoogleProfile = { sub: string; email: string; name: string }
+
+async function upsertGoogleStudent(profile: GoogleProfile) {
   let user = await db.user.findUnique({
     where: { email: profile.email },
     include: { student: true, authAccounts: true },
@@ -92,6 +89,75 @@ async function upsertGoogleStudent(profile: {
   return user
 }
 
+async function upsertGoogleTeacher(profile: GoogleProfile) {
+  let user = await db.user.findUnique({
+    where: { email: profile.email },
+    include: { teacher: true, authAccounts: true },
+  })
+
+  if (!user) {
+    user = await db.user.create({
+      data: {
+        email: profile.email,
+        passwordHash: null,
+        role: 'TEACHER',
+        teacher: {
+          create: {
+            fullName: profile.name,
+            profileComplete: false,
+          },
+        },
+        authAccounts: {
+          create: {
+            provider: 'google',
+            providerAccountId: profile.sub,
+          },
+        },
+      },
+      include: { teacher: true, authAccounts: true },
+    })
+  } else {
+    if (user.role !== 'TEACHER') {
+      throw new Error('ROLE_CONFLICT')
+    }
+    if (user.disabled) {
+      throw new Error('DISABLED')
+    }
+
+    await db.authAccount.upsert({
+      where: {
+        provider_providerAccountId: {
+          provider: 'google',
+          providerAccountId: profile.sub,
+        },
+      },
+      update: { userId: user.id },
+      create: {
+        userId: user.id,
+        provider: 'google',
+        providerAccountId: profile.sub,
+      },
+    })
+
+    if (!user.teacher) {
+      user = await db.user.update({
+        where: { id: user.id },
+        data: {
+          teacher: {
+            create: {
+              fullName: profile.name,
+              profileComplete: false,
+            },
+          },
+        },
+        include: { teacher: true, authAccounts: true },
+      })
+    }
+  }
+
+  return user
+}
+
 export async function GET(req: NextRequest) {
   try {
     const appUrl = getAppUrl()
@@ -116,12 +182,29 @@ export async function GET(req: NextRequest) {
     }
 
     const parsed = verifyOAuthState(state)
-    if (!parsed || parsed.role !== 'STUDENT') {
+    if (!parsed || (parsed.role !== 'STUDENT' && parsed.role !== 'TEACHER')) {
       return Response.redirect(`${appUrl}/?auth_error=invalid_state`)
     }
 
     try {
       const profile = await exchangeGoogleCode(code)
+
+      if (parsed.role === 'TEACHER') {
+        const user = await upsertGoogleTeacher(profile)
+        await createCollegeSession({
+          id: user.id,
+          email: user.email,
+          role: 'TEACHER',
+        })
+        await issueCsrfToken()
+        const needsProfile = !user.teacher?.profileComplete
+        return Response.redirect(
+          needsProfile
+            ? `${appUrl}/?teacher_setup=1`
+            : `${appUrl}/?teacher_login=1`
+        )
+      }
+
       const user = await upsertGoogleStudent(profile)
       const student = user.student!
 

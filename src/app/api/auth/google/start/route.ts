@@ -21,8 +21,8 @@ export async function GET(req: NextRequest) {
     }
 
     const role = req.nextUrl.searchParams.get('role') || 'STUDENT'
-    if (role !== 'STUDENT') {
-      return errorResponse('Google sign-in is only available for students', 400)
+    if (role !== 'STUDENT' && role !== 'TEACHER') {
+      return errorResponse('Google sign-in is only available for students and teachers', 400)
     }
 
     const nonce = crypto.randomUUID()

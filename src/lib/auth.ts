@@ -285,6 +285,15 @@ export function errorResponse(message: string, status = 400) {
  */
 export function handleRouteError(e: unknown, context: string): Response {
   const message = e instanceof Error ? e.message : String(e)
+
+  // Our own AuthError (401/403/429/400 …) must keep its real status + message.
+  // Previously these fell through to the generic 500 below, which is why the
+  // login UI showed "Request failed (500)" for auth failures (e.g. wrong
+  // password, missing CSRF token, account disabled) instead of the true error.
+  if (e instanceof AuthError) {
+    return errorResponse(e.message, e.status)
+  }
+
   // Prisma errors carry a `.code` (e.g. "P1001") separately from `.message`,
   // and the code isn't always present in the message text — check both.
   const code = (e as { code?: string } | null)?.code || ''

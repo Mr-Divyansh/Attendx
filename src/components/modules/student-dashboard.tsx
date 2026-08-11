@@ -47,6 +47,7 @@ import {
   LayoutDashboard,
   GraduationCap,
   CalendarCheck,
+  CalendarDays,
   BookOpen,
   TriangleAlert,
   RefreshCw,
@@ -55,6 +56,8 @@ import {
   KeyRound,
   School,
   Building2,
+  Mail,
+  ShieldCheck,
 } from 'lucide-react'
 
 // ── Types (mirrors API responses) ──────────────────────────────────────────
@@ -130,22 +133,25 @@ type ClassroomRow = {
 type ClassroomsResp = { classrooms: ClassroomRow[] }
 
 // ── Colors ─────────────────────────────────────────────────────────────────
-const COLOR_GOOD = '#22c55e' // green  >= 75
-const COLOR_WARN = '#f59e0b' // amber  60..74
-const COLOR_RISK = '#ef4444' // red    < 60
-const COLOR_PRIMARY = '#10b981'
-const COLOR_LATE = '#f59e0b'
-const COLOR_PRESENT = '#22c55e'
-const COLOR_ABSENT = '#ef4444'
+// Chart colors read CSS theme tokens so they adapt to light/dark mode:
+//   --chart-1 = green (present)   --chart-3 = amber (late/warning)
+//   --chart-4 = red (absent)      --chart-2 = blue (neutral series)
+const COLOR_GOOD = 'var(--chart-1)' // green  ≥ threshold
+const COLOR_WARN = 'var(--chart-3)' // amber  threshold→60
+const COLOR_RISK = 'var(--chart-4)' // red    < 60
+const COLOR_PRIMARY = 'var(--chart-2)'
+const COLOR_LATE = 'var(--chart-3)'
+const COLOR_PRESENT = 'var(--chart-1)'
+const COLOR_ABSENT = 'var(--chart-4)'
 
-function colorForPct(pct: number): string {
-  if (pct >= 75) return COLOR_GOOD
+function colorForPct(pct: number, threshold: number): string {
+  if (pct >= threshold) return COLOR_GOOD
   if (pct >= 60) return COLOR_WARN
   return COLOR_RISK
 }
 
-function labelForPct(pct: number): { label: string; className: string } {
-  if (pct >= 75)
+function labelForPct(pct: number, threshold: number): { label: string; className: string } {
+  if (pct >= threshold)
     return {
       label: 'Good',
       className:
@@ -167,6 +173,7 @@ function labelForPct(pct: number): { label: string; className: string } {
 // ── Nav ────────────────────────────────────────────────────────────────────
 const NAV: NavItem[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'classrooms', label: 'Classrooms', icon: Users },
   { id: 'subjects', label: 'Subjects', icon: BookOpen },
   { id: 'weekly', label: 'Weekly', icon: CalendarCheck },
   { id: 'monthly', label: 'Monthly', icon: GraduationCap },
@@ -220,7 +227,6 @@ export function StudentDashboard() {
     .toUpperCase()
 
   const threshold = stats?.minimumAttendancePercentage ?? 75
-  const atRiskSubjects = subjects.filter((s) => s.pct >= 0 && s.pct < threshold)
 
   const handleJoinClassroom = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -277,6 +283,7 @@ export function StudentDashboard() {
         <WelcomeBanner
           firstName={firstName}
           student={stats?.student}
+          email={user?.email}
           loading={loading}
         />
 
@@ -291,6 +298,17 @@ export function StudentDashboard() {
             <AlertDescription className="text-amber-700/90 dark:text-amber-300/90">
               Your attendance has fallen below the minimum requirement. Please attend
               upcoming classes regularly.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!loading && stats && stats.overallPct != null && stats.overallPct < threshold && (
+          <Alert className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+            <TriangleAlert className="text-amber-600 dark:text-amber-400" />
+            <AlertTitle>Attendance is below {threshold}%.</AlertTitle>
+            <AlertDescription className="text-amber-700/90 dark:text-amber-300/90">
+              Please attend classes regularly to maintain the required attendance
+              percentage.
             </AlertDescription>
           </Alert>
         )}
@@ -312,7 +330,7 @@ export function StudentDashboard() {
               <Skeleton className="h-28 rounded-xl" />
             </>
           ) : stats ? (
-            <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               <StatCard
                 label="Overall Attendance"
                 value={
@@ -341,8 +359,32 @@ export function StudentDashboard() {
                 icon={TriangleAlert}
                 tone={stats.atRiskCount > 0 ? 'chart-4' : 'primary'}
               />
-            </>
+            </div>
           ) : null}
+
+          {/* Present / Absent / Total classes */}
+          {!loading && stats && stats.counts.total > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <StatCard
+              label="Present"
+              value={stats.counts.present + stats.counts.late}
+              icon={CheckCircle2}
+              tone="chart-5"
+            />
+              <StatCard
+                label="Absent"
+                value={stats.counts.absent}
+                icon={TriangleAlert}
+                tone="chart-4"
+              />
+              <StatCard
+                label="Total Classes"
+                value={stats.counts.total}
+                icon={CalendarDays}
+                tone="chart-2"
+              />
+            </div>
+          )}
 
         <section id="section-classrooms" className="scroll-mt-24">
           <Card>
@@ -465,7 +507,7 @@ export function StudentDashboard() {
                       />
                       <Bar dataKey="pct" radius={[6, 6, 0, 0]} maxBarSize={64}>
                         {subjects.map((s) => (
-                          <Cell key={s.subjectId} fill={colorForPct(s.pct)} />
+                          <Cell key={s.subjectId} fill={colorForPct(s.pct, threshold)} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -715,7 +757,7 @@ export function StudentDashboard() {
                     </TableHeader>
                     <TableBody>
                       {subjects.map((s) => {
-                        const st = labelForPct(s.pct)
+                        const st = labelForPct(s.pct, threshold)
                         return (
                           <TableRow key={s.subjectId}>
                             <TableCell className="pl-4 font-mono text-xs text-muted-foreground">
@@ -775,9 +817,7 @@ export function StudentDashboard() {
                       ? 'No attendance records yet'
                       : stats.overallPct >= threshold
                         ? 'Good attendance. Keep it up!'
-                        : stats.overallPct === threshold
-                          ? 'You are at the minimum attendance requirement.'
-                          : `Your attendance is currently ${stats.overallPct}%.`}
+                        : `Your attendance is currently ${stats.overallPct}% — below the required ${threshold}%.`}
                   </p>
                   <p className="text-sm text-muted-foreground mt-0.5">
                     {stats.counts.attended} attended out of {stats.counts.total} total
@@ -803,10 +843,12 @@ export function StudentDashboard() {
 function WelcomeBanner({
   firstName,
   student,
+  email,
   loading,
 }: {
   firstName: string
   student?: StatsResp['student']
+  email?: string
   loading: boolean
 }) {
   return (
@@ -824,9 +866,15 @@ function WelcomeBanner({
                 Welcome, <span className="text-primary">{firstName}</span>
               </h2>
             )}
-            <p className="text-sm text-muted-foreground mt-1.5">
-              Here&apos;s your official attendance summary, projected from
-              teacher-marked records.
+            <p className="text-sm text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="inline-flex items-center gap-1.5">
+                <Mail className="size-3.5" />
+                {email || '—'}
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-primary">
+                <ShieldCheck className="size-3.5" />
+                Role: Student
+              </span>
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

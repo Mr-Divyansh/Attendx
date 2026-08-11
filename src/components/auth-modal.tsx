@@ -1,7 +1,11 @@
 'use client'
 
+// AttendX — Sign in / Register experience.
+// A professional, focused auth flow with an explicit role selection step
+// ("I am a Student" / "I am a Teacher"), secure email+password forms, real
+// Google OAuth, and server-side role assignment on registration.
 import { useEffect, useState } from 'react'
-import { useAuth, type Role, type SessionUser } from '@/stores/auth-store'
+import { useAuth, type SessionUser } from '@/stores/auth-store'
 import {
   Dialog,
   DialogContent,
@@ -13,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
 import {
@@ -23,9 +28,47 @@ import {
   Building2,
   School,
   ArrowLeft,
+  UserRound,
+  Mail,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react'
 
-type ProfileForm = {
+type Step =
+  | 'role'
+  | 'student-login'
+  | 'student-register'
+  | 'teacher-login'
+  | 'teacher-register'
+  | 'personal-login'
+  | 'personal-register'
+  | 'student-profile'
+  | 'teacher-profile'
+
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5 shrink-0" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+      />
+    </svg>
+  )
+}
+
+type StudentProfileForm = {
   fullName: string
   rollNo: string
   hasRollNumber: boolean
@@ -38,77 +81,174 @@ type ProfileForm = {
   semesterLabel: string
 }
 
-type TeacherForm = {
-  fullName: string
-  email: string
-  password: string
-  confirm: string
-  subjectTaught: string
-  institutionName: string
-  departmentLabel: string
+const emptyStudentProfile: StudentProfileForm = {
+  fullName: '',
+  rollNo: '',
+  hasRollNumber: true,
+  studentType: 'COLLEGE',
+  institutionName: '',
+  gradeLevel: '',
+  schoolSection: '',
+  academicYear: '',
+  course: '',
+  semesterLabel: '',
 }
 
 export function AuthModal() {
   const { loginRole, openLogin, setUser, setCsrf, refresh, forceProfileSetup } = useAuth()
   const open = loginRole !== null
 
-  const [step, setStep] = useState<'auth' | 'profile' | 'teacher-register'>('auth')
-  const [teacherMode, setTeacherMode] = useState<'login' | 'register'>('login')
+  const [step, setStep] = useState<Step>('role')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  // Student login / register
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [profileForm, setProfileForm] = useState<ProfileForm>({
-    fullName: '',
-    rollNo: '',
-    hasRollNumber: true,
-    studentType: 'COLLEGE',
-    institutionName: '',
-    gradeLevel: '',
-    schoolSection: '',
-    academicYear: '',
-    course: '',
-    semesterLabel: '',
-  })
-  const [teacherForm, setTeacherForm] = useState<TeacherForm>({
+  const [reg, setReg] = useState({ fullName: '', email: '', password: '', confirm: '' })
+
+  // Teacher register
+  const [teacherReg, setTeacherReg] = useState({
     fullName: '',
     email: '',
     password: '',
     confirm: '',
     subjectTaught: '',
     institutionName: '',
-    departmentLabel: '',
   })
+
+  // Teacher profile
+  const [teacherProfile, setTeacherProfile] = useState({
+    fullName: '',
+    subjectTaught: '',
+    institutionName: '',
+  })
+
+  // Personal login / register
+  const [personal, setPersonal] = useState({
+    username: '',
+    password: '',
+    confirm: '',
+    fullName: '',
+  })
+
+  const [studentProfile, setStudentProfile] =
+    useState<StudentProfileForm>(emptyStudentProfile)
 
   useEffect(() => {
     if (open) {
-      setStep(forceProfileSetup ? 'profile' : 'auth')
+      setErr(null)
+      setStep(
+        forceProfileSetup
+          ? loginRole === 'TEACHER'
+            ? 'teacher-profile'
+            : 'student-profile'
+          : 'role'
+      )
     }
   }, [open, loginRole, forceProfileSetup])
 
   const close = () => {
     openLogin(null)
-    setStep('auth')
-    setTeacherMode('login')
+    setStep('role')
+    setErr(null)
+    setBusy(false)
     setEmail('')
     setPassword('')
-    setProfileForm({
+    setReg({ fullName: '', email: '', password: '', confirm: '' })
+    setTeacherReg({
       fullName: '',
-      rollNo: '',
-      hasRollNumber: true,
-      studentType: 'COLLEGE',
+      email: '',
+      password: '',
+      confirm: '',
+      subjectTaught: '',
       institutionName: '',
-      gradeLevel: '',
-      schoolSection: '',
-      academicYear: '',
-      course: '',
-      semesterLabel: '',
     })
+    setPersonal({ username: '', password: '', confirm: '', fullName: '' })
+    setStudentProfile(emptyStudentProfile)
   }
 
-  const handleTeacherLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const finishAuth = async () => {
+    await refresh()
+    close()
+  }
+
+  const run = async (fn: () => Promise<void>) => {
     setBusy(true)
+    setErr(null)
     try {
+      await fn()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Something went wrong. Please try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // ── STUDENT ──────────────────────────────────────────────────────────────
+  const handleStudentLogin = (e: React.FormEvent) =>
+    run(async () => {
+      e.preventDefault()
+      const data = await apiFetch<{ user: SessionUser; csrfToken: string }>(
+        '/api/auth/login',
+        {
+          method: 'POST',
+          body: JSON.stringify({ email, password, role: 'STUDENT' }),
+        }
+      )
+      setUser(data.user)
+      setCsrf(data.csrfToken)
+      toast.success(`Welcome back, ${data.user.name}!`)
+      await finishAuth()
+    })
+
+  const handleStudentRegister = (e: React.FormEvent) =>
+    run(async () => {
+      e.preventDefault()
+      if (reg.password !== reg.confirm) {
+        setErr('Passwords do not match')
+        return
+      }
+      const data = await apiFetch<{
+        user: SessionUser
+        csrfToken: string
+        needsProfile: boolean
+      }>('/api/auth/register-student', {
+        method: 'POST',
+        body: JSON.stringify({
+          fullName: reg.fullName,
+          email: reg.email,
+          password: reg.password,
+          confirm: reg.confirm,
+        }),
+      })
+      setUser(data.user)
+      setCsrf(data.csrfToken)
+      setStudentProfile((p) => ({ ...p, fullName: data.user.name }))
+      setStep('student-profile')
+      toast.success('Account created! Complete your profile to continue.')
+    })
+
+  const handleGoogle = (role: 'STUDENT' | 'TEACHER') => {
+    window.location.href = `/api/auth/google/start?role=${role}`
+  }
+
+  const handleStudentProfileSave = (e: React.FormEvent) =>
+    run(async () => {
+      e.preventDefault()
+      await apiFetch('/api/student/profile', {
+        method: 'POST',
+        body: JSON.stringify(studentProfile),
+      })
+      await refresh()
+      toast.success('Profile saved. Your dashboard is ready.')
+      close()
+    })
+
+  // ── TEACHER ──────────────────────────────────────────────────────────────
+  const handleTeacherLogin = (e: React.FormEvent) =>
+    run(async () => {
+      e.preventDefault()
       const data = await apiFetch<{ user: SessionUser; csrfToken: string }>(
         '/api/auth/login',
         {
@@ -119,245 +259,593 @@ export function AuthModal() {
       setUser(data.user)
       setCsrf(data.csrfToken)
       toast.success(`Welcome back, ${data.user.name}!`)
-      close()
-    } catch (err) {
-      toast.error((err as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
+      await finishAuth()
+    })
 
-  const handleTeacherRegister = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setBusy(true)
-    try {
+  const handleTeacherRegister = (e: React.FormEvent) =>
+    run(async () => {
+      e.preventDefault()
+      if (teacherReg.password !== teacherReg.confirm) {
+        setErr('Passwords do not match')
+        return
+      }
       const data = await apiFetch<{
         user: SessionUser
         csrfToken: string
         needsProfile: boolean
       }>('/api/auth/register-teacher', {
         method: 'POST',
-        body: JSON.stringify(teacherForm),
+        body: JSON.stringify(teacherReg),
       })
       setUser(data.user)
       setCsrf(data.csrfToken)
+      setTeacherProfile({
+        fullName: data.user.name,
+        subjectTaught: teacherReg.subjectTaught,
+        institutionName: teacherReg.institutionName,
+      })
       if (data.needsProfile) {
+        setStep('teacher-profile')
         toast.success('Account created! Complete your teacher profile.')
       } else {
         toast.success(`Welcome, ${data.user.name}!`)
-        close()
+        await finishAuth()
       }
-    } catch (err) {
-      toast.error((err as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
+    })
 
-  const handleDevGoogle = async () => {
-    setBusy(true)
-    try {
-      const devName = profileForm.fullName || 'Student'
-      const devEmail =
-        profileForm.fullName
-          ? `${profileForm.fullName.toLowerCase().replace(/\s+/g, '.')}@gmail.com`
-          : 'student@gmail.com'
-
-      const data = await apiFetch<{
-        user: SessionUser
-        csrfToken: string
-        needsProfile: boolean
-      }>('/api/auth/google', {
+  const handleTeacherProfileSave = (e: React.FormEvent) =>
+    run(async () => {
+      e.preventDefault()
+      await apiFetch('/api/teacher/profile', {
         method: 'POST',
-        body: JSON.stringify({
-          name: devName,
-          email: devEmail,
-          googleId: devEmail,
-        }),
-      })
-      setUser(data.user)
-      setCsrf(data.csrfToken)
-      if (data.needsProfile) {
-        setProfileForm((prev) => ({
-          ...prev,
-          fullName: data.user.name || devName,
-        }))
-        setStep('profile')
-        toast.success('Signed in! Please complete your profile.')
-      } else {
-        toast.success(`Welcome, ${data.user.name}!`)
-        close()
-      }
-    } catch (err) {
-      toast.error((err as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const handleGoogleSignIn = () => {
-    window.location.href = '/api/auth/google/start?role=STUDENT'
-  }
-
-  const handleProfileSave = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setBusy(true)
-    try {
-      await apiFetch('/api/student/profile', {
-        method: 'POST',
-        body: JSON.stringify(profileForm),
+        body: JSON.stringify(teacherProfile),
       })
       await refresh()
       toast.success('Profile saved. Your dashboard is ready.')
       close()
-    } catch (err) {
-      toast.error((err as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
+    })
 
-  const title =
-    step === 'profile'
-      ? 'Complete your profile'
-      : loginRole === 'TEACHER'
-        ? teacherMode === 'register'
-          ? 'Create teacher account'
-          : 'Teacher sign in'
-        : 'Student sign in'
+  // ── PERSONAL ─────────────────────────────────────────────────────────────
+  const handlePersonalLogin = (e: React.FormEvent) =>
+    run(async () => {
+      e.preventDefault()
+      const data = await apiFetch<{ user: SessionUser; csrfToken: string }>(
+        '/api/auth/login-personal',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            username: personal.username,
+            password: personal.password,
+          }),
+        }
+      )
+      setUser(data.user)
+      setCsrf(data.csrfToken)
+      toast.success(`Welcome back, ${data.user.name}!`)
+      await finishAuth()
+    })
+
+  const handlePersonalRegister = (e: React.FormEvent) =>
+    run(async () => {
+      e.preventDefault()
+      if (personal.password !== personal.confirm) {
+        setErr('Passwords do not match')
+        return
+      }
+      const data = await apiFetch<{ user: SessionUser; csrfToken: string }>(
+        '/api/auth/register',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fullName: personal.fullName,
+            username: personal.username,
+            password: personal.password,
+            confirm: personal.confirm,
+          }),
+        }
+      )
+      setUser(data.user)
+      setCsrf(data.csrfToken)
+      toast.success(`Welcome, ${data.user.name}!`)
+      await finishAuth()
+    })
+
+  const header = useHeader(step, setStep)
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="sm:max-w-lg gap-0 p-0 overflow-hidden">
-        <div className="bg-muted/40 px-6 pt-6 pb-4 border-b">
-          <DialogHeader className="text-left space-y-2">
-            <div className="flex items-center gap-3">
-              {step === 'profile' ? (
-                <button
-                  type="button"
-                  onClick={() => setStep('auth')}
-                  className="size-10 rounded-xl border bg-card/80 grid place-items-center hover:bg-card transition-colors"
-                >
-                  <ArrowLeft className="size-4" />
-                </button>
-              ) : (
-                <div className="size-10 rounded-xl bg-primary/15 text-primary grid place-items-center">
-                  {loginRole === 'TEACHER' ? (
-                    <Users className="size-5" />
-                  ) : (
-                    <GraduationCap className="size-5" />
-                  )}
-                </div>
-              )}
-              <div>
-                <DialogTitle className="text-xl">{title}</DialogTitle>
-                <DialogDescription className="text-sm">
-                  {step === 'profile'
-                    ? 'Tell us a little about yourself so we can personalize your dashboard.'
-                    : loginRole === 'TEACHER'
-                      ? 'Manage classrooms and mark attendance for your students.'
-                      : 'Sign in securely and track your attendance in one place.'}
-                </DialogDescription>
-              </div>
+        {/* Branded header */}
+        <div className="px-6 pt-6 pb-5 border-b bg-muted/30">
+          <DialogHeader className="text-center space-y-3">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+              <GraduationCap className="size-6" />
+            </div>
+            <div>
+              <DialogTitle className="text-2xl tracking-tight">
+                {header.title}
+              </DialogTitle>
+              <DialogDescription className="text-sm leading-relaxed max-w-sm mx-auto">
+                {header.subtitle}
+              </DialogDescription>
             </div>
           </DialogHeader>
         </div>
 
-        <div className="px-6 py-5">
-          {loginRole === 'STUDENT' && step === 'auth' && (
-            <div className="space-y-4">
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-11 justify-center gap-3 font-medium bg-card hover:bg-accent"
-                onClick={handleGoogleSignIn}
-                disabled={busy}
-              >
-                <svg viewBox="0 0 24 24" className="size-5" aria-hidden>
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  />
-                </svg>
-                Continue with Google
-              </Button>
+        <div className="px-6 py-5 max-h-[70vh] overflow-y-auto scroll-thin">
+          {/* Back to role selection */}
+          {!header.isRole && (
+            <button
+              type="button"
+              onClick={() => setStep('role')}
+              className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="size-4" />
+              All sign-in options
+            </button>
+          )}
 
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    Dev mode (no Google credentials)
-                  </span>
-                </div>
-              </div>
+          {err && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{err}</AlertDescription>
+            </Alert>
+          )}
 
-              <div className="space-y-3 rounded-xl border bg-muted/30 p-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="dev-name">Your name</Label>
-                  <Input
-                    id="dev-name"
-                    value={profileForm.fullName}
-                    onChange={(e) =>
-                      setProfileForm((p) => ({ ...p, fullName: e.target.value }))
-                    }
-                    placeholder="Divyansh Kumar"
-                  />
-                </div>
-                <Button
+          {/* ── STEP: ROLE SELECTION ─────────────────────────────────── */}
+          {step === 'role' && (
+            <div className="space-y-3">
+              <RoleCard
+                title="I am a Student"
+                desc="Sign in and track your attendance in one place."
+                icon={GraduationCap}
+                onClick={() => setStep('student-login')}
+              />
+              <RoleCard
+                title="I am a Teacher"
+                desc="Create classrooms, invite students and mark attendance."
+                icon={Users}
+                onClick={() => setStep('teacher-login')}
+              />
+              <div className="pt-2 text-center">
+                <button
                   type="button"
-                  variant="secondary"
-                  className="w-full"
-                  onClick={handleDevGoogle}
-                  disabled={busy || !profileForm.fullName.trim()}
+                  onClick={() => setStep('personal-login')}
+                  className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  {busy ? (
-                    <Loader2 className="size-4 mr-2 animate-spin" />
-                  ) : null}
-                  Quick sign-in (development)
-                </Button>
+                  <UserRound className="size-4" />
+                  Use the Personal attendance tracker
+                </button>
               </div>
-
-              <p className="text-xs text-center text-muted-foreground leading-relaxed">
-                Your session is stored securely on this device. You won&apos;t need to
-                sign in again until you log out.
-              </p>
             </div>
           )}
 
-          {loginRole === 'STUDENT' && step === 'profile' && (
-            <form onSubmit={handleProfileSave} className="space-y-4 max-h-[60vh] overflow-y-auto scroll-thin pr-1">
-              <div className="space-y-1.5">
-                <Label htmlFor="profile-name">Student name</Label>
+          {/* ── STEP: STUDENT LOGIN ──────────────────────────────────── */}
+          {step === 'student-login' && (
+            <form onSubmit={handleStudentLogin} className="space-y-4">
+              <Field label="Email" htmlFor="student-email">
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    id="student-email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@college.edu"
+                    className="h-11 pl-10"
+                    required
+                  />
+                </div>
+              </Field>
+              <Field label="Password" htmlFor="student-password">
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    id="student-password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-11 pl-10"
+                    required
+                  />
+                </div>
+              </Field>
+              <Button type="submit" className="w-full h-11" disabled={busy}>
+                {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Lock className="size-4 mr-2" />}
+                Sign In
+              </Button>
+
+              <OrDivider />
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 justify-center gap-3 font-medium"
+                onClick={() => handleGoogle('STUDENT')}
+                disabled={busy}
+              >
+                <GoogleIcon />
+                Continue with Google
+              </Button>
+
+              <p className="text-center text-sm text-muted-foreground">
+                Don&apos;t have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => setStep('student-register')}
+                  className="font-semibold text-primary hover:underline"
+                >
+                  Create account
+                </button>
+              </p>
+            </form>
+          )}
+
+          {/* ── STEP: STUDENT REGISTER ───────────────────────────────── */}
+          {step === 'student-register' && (
+            <form onSubmit={handleStudentRegister} className="space-y-4">
+              <Field label="Full Name" htmlFor="student-reg-name">
+                <Input
+                  id="student-reg-name"
+                  autoComplete="name"
+                  value={reg.fullName}
+                  onChange={(e) => setReg((r) => ({ ...r, fullName: e.target.value }))}
+                  placeholder="Aarav Sharma"
+                  className="h-11"
+                  required
+                />
+              </Field>
+              <Field label="Email" htmlFor="student-reg-email">
+                <Input
+                  id="student-reg-email"
+                  type="email"
+                  autoComplete="email"
+                  value={reg.email}
+                  onChange={(e) => setReg((r) => ({ ...r, email: e.target.value }))}
+                  placeholder="you@college.edu"
+                  className="h-11"
+                  required
+                />
+              </Field>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Password" htmlFor="student-reg-pass">
+                  <Input
+                    id="student-reg-pass"
+                    type="password"
+                    autoComplete="new-password"
+                    value={reg.password}
+                    onChange={(e) => setReg((r) => ({ ...r, password: e.target.value }))}
+                    className="h-11"
+                    required
+                  />
+                </Field>
+                <Field label="Confirm Password" htmlFor="student-reg-confirm">
+                  <Input
+                    id="student-reg-confirm"
+                    type="password"
+                    autoComplete="new-password"
+                    value={reg.confirm}
+                    onChange={(e) => setReg((r) => ({ ...r, confirm: e.target.value }))}
+                    className="h-11"
+                    required
+                  />
+                </Field>
+              </div>
+              <Button type="submit" className="w-full h-11" disabled={busy}>
+                {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <BookOpen className="size-4 mr-2" />}
+                Create Account
+              </Button>
+              <p className="text-center text-sm text-muted-foreground">
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => setStep('student-login')}
+                  className="font-semibold text-primary hover:underline"
+                >
+                  Sign in
+                </button>
+              </p>
+            </form>
+          )}
+
+          {/* ── STEP: TEACHER LOGIN ──────────────────────────────────── */}
+          {step === 'teacher-login' && (
+            <form onSubmit={handleTeacherLogin} className="space-y-4">
+              <Field label="Email" htmlFor="teacher-email">
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    id="teacher-email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="rao@college.edu"
+                    className="h-11 pl-10"
+                    required
+                  />
+                </div>
+              </Field>
+              <Field label="Password" htmlFor="teacher-password">
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    id="teacher-password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-11 pl-10"
+                    required
+                  />
+                </div>
+              </Field>
+              <Button type="submit" className="w-full h-11" disabled={busy}>
+                {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Users className="size-4 mr-2" />}
+                Sign In
+              </Button>
+
+              <OrDivider />
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 justify-center gap-3 font-medium"
+                onClick={() => handleGoogle('TEACHER')}
+                disabled={busy}
+              >
+                <GoogleIcon />
+                Continue with Google
+              </Button>
+
+              <p className="text-center text-sm text-muted-foreground">
+                Don&apos;t have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => setStep('teacher-register')}
+                  className="font-semibold text-primary hover:underline"
+                >
+                  Create teacher account
+                </button>
+              </p>
+            </form>
+          )}
+
+          {/* ── STEP: TEACHER REGISTER ───────────────────────────────── */}
+          {step === 'teacher-register' && (
+            <form onSubmit={handleTeacherRegister} className="space-y-4">
+              <Field label="Full Name" htmlFor="teacher-reg-name">
+                <Input
+                  id="teacher-reg-name"
+                  autoComplete="name"
+                  value={teacherReg.fullName}
+                  onChange={(e) =>
+                    setTeacherReg((r) => ({ ...r, fullName: e.target.value }))
+                  }
+                  placeholder="Rahul Sharma"
+                  className="h-11"
+                  required
+                />
+              </Field>
+              <Field label="Email" htmlFor="teacher-reg-email">
+                <Input
+                  id="teacher-reg-email"
+                  type="email"
+                  autoComplete="email"
+                  value={teacherReg.email}
+                  onChange={(e) =>
+                    setTeacherReg((r) => ({ ...r, email: e.target.value }))
+                  }
+                  placeholder="rao@college.edu"
+                  className="h-11"
+                  required
+                />
+              </Field>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Password" htmlFor="teacher-reg-pass">
+                  <Input
+                    id="teacher-reg-pass"
+                    type="password"
+                    autoComplete="new-password"
+                    value={teacherReg.password}
+                    onChange={(e) =>
+                      setTeacherReg((r) => ({ ...r, password: e.target.value }))
+                    }
+                    className="h-11"
+                    required
+                  />
+                </Field>
+                <Field label="Confirm" htmlFor="teacher-reg-confirm">
+                  <Input
+                    id="teacher-reg-confirm"
+                    type="password"
+                    autoComplete="new-password"
+                    value={teacherReg.confirm}
+                    onChange={(e) =>
+                      setTeacherReg((r) => ({ ...r, confirm: e.target.value }))
+                    }
+                    className="h-11"
+                    required
+                  />
+                </Field>
+              </div>
+              <Field label="Subject(s) Taught" htmlFor="teacher-reg-subject">
+                <Input
+                  id="teacher-reg-subject"
+                  value={teacherReg.subjectTaught}
+                  onChange={(e) =>
+                    setTeacherReg((r) => ({ ...r, subjectTaught: e.target.value }))
+                  }
+                  placeholder="Programming, Data Structures"
+                  className="h-11"
+                />
+              </Field>
+              <Field label="Institution / School / College" htmlFor="teacher-reg-institution">
+                <Input
+                  id="teacher-reg-institution"
+                  value={teacherReg.institutionName}
+                  onChange={(e) =>
+                    setTeacherReg((r) => ({ ...r, institutionName: e.target.value }))
+                  }
+                  placeholder="ABC College of Engineering"
+                  className="h-11"
+                />
+              </Field>
+              <Button type="submit" className="w-full h-11" disabled={busy}>
+                {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Users className="size-4 mr-2" />}
+                Create Teacher Account
+              </Button>
+              <p className="text-center text-sm text-muted-foreground">
+                Already registered?{' '}
+                <button
+                  type="button"
+                  onClick={() => setStep('teacher-login')}
+                  className="font-semibold text-primary hover:underline"
+                >
+                  Sign in
+                </button>
+              </p>
+            </form>
+          )}
+
+          {/* ── STEP: PERSONAL LOGIN / REGISTER ──────────────────────── */}
+          {step === 'personal-login' && (
+            <form onSubmit={handlePersonalLogin} className="space-y-4">
+              <Field label="Username" htmlFor="personal-username">
+                <Input
+                  id="personal-username"
+                  autoComplete="username"
+                  value={personal.username}
+                  onChange={(e) =>
+                    setPersonal((p) => ({ ...p, username: e.target.value }))
+                  }
+                  placeholder="your.username"
+                  className="h-11"
+                  required
+                />
+              </Field>
+              <Field label="Password" htmlFor="personal-password">
+                <Input
+                  id="personal-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={personal.password}
+                  onChange={(e) =>
+                    setPersonal((p) => ({ ...p, password: e.target.value }))
+                  }
+                  className="h-11"
+                  required
+                />
+              </Field>
+              <Button type="submit" className="w-full h-11" disabled={busy}>
+                {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <UserRound className="size-4 mr-2" />}
+                Sign In
+              </Button>
+              <p className="text-center text-sm text-muted-foreground">
+                New here?{' '}
+                <button
+                  type="button"
+                  onClick={() => setStep('personal-register')}
+                  className="font-semibold text-primary hover:underline"
+                >
+                  Create an account
+                </button>
+              </p>
+            </form>
+          )}
+
+          {step === 'personal-register' && (
+            <form onSubmit={handlePersonalRegister} className="space-y-4">
+              <Field label="Full Name" htmlFor="personal-reg-name">
+                <Input
+                  id="personal-reg-name"
+                  autoComplete="name"
+                  value={personal.fullName}
+                  onChange={(e) =>
+                    setPersonal((p) => ({ ...p, fullName: e.target.value }))
+                  }
+                  className="h-11"
+                  required
+                />
+              </Field>
+              <Field label="Username" htmlFor="personal-reg-username">
+                <Input
+                  id="personal-reg-username"
+                  autoComplete="username"
+                  value={personal.username}
+                  onChange={(e) =>
+                    setPersonal((p) => ({ ...p, username: e.target.value }))
+                  }
+                  className="h-11"
+                  required
+                />
+              </Field>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Password" htmlFor="personal-reg-pass">
+                  <Input
+                    id="personal-reg-pass"
+                    type="password"
+                    autoComplete="new-password"
+                    value={personal.password}
+                    onChange={(e) =>
+                      setPersonal((p) => ({ ...p, password: e.target.value }))
+                    }
+                    className="h-11"
+                    required
+                  />
+                </Field>
+                <Field label="Confirm" htmlFor="personal-reg-confirm">
+                  <Input
+                    id="personal-reg-confirm"
+                    type="password"
+                    autoComplete="new-password"
+                    value={personal.confirm}
+                    onChange={(e) =>
+                      setPersonal((p) => ({ ...p, confirm: e.target.value }))
+                    }
+                    className="h-11"
+                    required
+                  />
+                </Field>
+              </div>
+              <Button type="submit" className="w-full h-11" disabled={busy}>
+                {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <BookOpen className="size-4 mr-2" />}
+                Create Account
+              </Button>
+              <p className="text-center text-sm text-muted-foreground">
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => setStep('personal-login')}
+                  className="font-semibold text-primary hover:underline"
+                >
+                  Sign in
+                </button>
+              </p>
+            </form>
+          )}
+
+          {/* ── STEP: STUDENT PROFILE SETUP ──────────────────────────── */}
+          {step === 'student-profile' && (
+            <form onSubmit={handleStudentProfileSave} className="space-y-4">
+              <Field label="Student name" htmlFor="profile-name">
                 <Input
                   id="profile-name"
-                  value={profileForm.fullName}
+                  value={studentProfile.fullName}
                   onChange={(e) =>
-                    setProfileForm((p) => ({ ...p, fullName: e.target.value }))
+                    setStudentProfile((p) => ({ ...p, fullName: e.target.value }))
                   }
                   required
                 />
-              </div>
+              </Field>
 
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="has-roll"
-                  checked={profileForm.hasRollNumber}
+                  checked={studentProfile.hasRollNumber}
                   onCheckedChange={(v) =>
-                    setProfileForm((p) => ({
+                    setStudentProfile((p) => ({
                       ...p,
                       hasRollNumber: v === true,
                       rollNo: v === true ? p.rollNo : '',
@@ -369,29 +857,28 @@ export function AuthModal() {
                 </Label>
               </div>
 
-              {profileForm.hasRollNumber && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="profile-roll">Roll number</Label>
+              {studentProfile.hasRollNumber && (
+                <Field label="Roll number" htmlFor="profile-roll">
                   <Input
                     id="profile-roll"
-                    value={profileForm.rollNo}
+                    value={studentProfile.rollNo}
                     onChange={(e) =>
-                      setProfileForm((p) => ({ ...p, rollNo: e.target.value }))
+                      setStudentProfile((p) => ({ ...p, rollNo: e.target.value }))
                     }
                     placeholder="BCA2026001"
                     required
                   />
-                </div>
+                </Field>
               )}
 
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() =>
-                    setProfileForm((p) => ({ ...p, studentType: 'SCHOOL' }))
+                    setStudentProfile((p) => ({ ...p, studentType: 'SCHOOL' }))
                   }
-                  className={`rounded-xl border p-4 text-left transition-all ${
-                    profileForm.studentType === 'SCHOOL'
+                  className={`rounded-xl border p-4 text-left transition-colors ${
+                    studentProfile.studentType === 'SCHOOL'
                       ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
                       : 'hover:border-primary/40'
                   }`}
@@ -402,10 +889,10 @@ export function AuthModal() {
                 <button
                   type="button"
                   onClick={() =>
-                    setProfileForm((p) => ({ ...p, studentType: 'COLLEGE' }))
+                    setStudentProfile((p) => ({ ...p, studentType: 'COLLEGE' }))
                   }
-                  className={`rounded-xl border p-4 text-left transition-all ${
-                    profileForm.studentType === 'COLLEGE'
+                  className={`rounded-xl border p-4 text-left transition-colors ${
+                    studentProfile.studentType === 'COLLEGE'
                       ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
                       : 'hover:border-primary/40'
                   }`}
@@ -415,14 +902,13 @@ export function AuthModal() {
                 </button>
               </div>
 
-              {profileForm.studentType === 'SCHOOL' ? (
+              {studentProfile.studentType === 'SCHOOL' ? (
                 <>
-                  <div className="space-y-1.5">
-                    <Label>School name</Label>
+                  <Field label="School name">
                     <Input
-                      value={profileForm.institutionName}
+                      value={studentProfile.institutionName}
                       onChange={(e) =>
-                        setProfileForm((p) => ({
+                        setStudentProfile((p) => ({
                           ...p,
                           institutionName: e.target.value,
                         }))
@@ -430,14 +916,13 @@ export function AuthModal() {
                       placeholder="ABC School"
                       required
                     />
-                  </div>
+                  </Field>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label>Grade/Class</Label>
+                    <Field label="Grade/Class">
                       <Input
-                        value={profileForm.gradeLevel}
+                        value={studentProfile.gradeLevel}
                         onChange={(e) =>
-                          setProfileForm((p) => ({
+                          setStudentProfile((p) => ({
                             ...p,
                             gradeLevel: e.target.value,
                           }))
@@ -445,43 +930,40 @@ export function AuthModal() {
                         placeholder="10"
                         required
                       />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Section</Label>
+                    </Field>
+                    <Field label="Section">
                       <Input
-                        value={profileForm.schoolSection}
+                        value={studentProfile.schoolSection}
                         onChange={(e) =>
-                          setProfileForm((p) => ({
+                          setStudentProfile((p) => ({
                             ...p,
                             schoolSection: e.target.value,
                           }))
                         }
                         placeholder="A"
                       />
-                    </div>
+                    </Field>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label>Academic year</Label>
+                  <Field label="Academic year">
                     <Input
-                      value={profileForm.academicYear}
+                      value={studentProfile.academicYear}
                       onChange={(e) =>
-                        setProfileForm((p) => ({
+                        setStudentProfile((p) => ({
                           ...p,
                           academicYear: e.target.value,
                         }))
                       }
                       placeholder="2026-27"
                     />
-                  </div>
+                  </Field>
                 </>
               ) : (
                 <>
-                  <div className="space-y-1.5">
-                    <Label>College or university</Label>
+                  <Field label="College or university">
                     <Input
-                      value={profileForm.institutionName}
+                      value={studentProfile.institutionName}
                       onChange={(e) =>
-                        setProfileForm((p) => ({
+                        setStudentProfile((p) => ({
                           ...p,
                           institutionName: e.target.value,
                         }))
@@ -489,193 +971,223 @@ export function AuthModal() {
                       placeholder="ABC College"
                       required
                     />
-                  </div>
+                  </Field>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label>Course</Label>
+                    <Field label="Course">
                       <Input
-                        value={profileForm.course}
+                        value={studentProfile.course}
                         onChange={(e) =>
-                          setProfileForm((p) => ({ ...p, course: e.target.value }))
+                          setStudentProfile((p) => ({ ...p, course: e.target.value }))
                         }
                         placeholder="BCA"
                         required
                       />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Semester</Label>
+                    </Field>
+                    <Field label="Semester">
                       <Input
-                        value={profileForm.semesterLabel}
+                        value={studentProfile.semesterLabel}
                         onChange={(e) =>
-                          setProfileForm((p) => ({
+                          setStudentProfile((p) => ({
                             ...p,
                             semesterLabel: e.target.value,
                           }))
                         }
                         placeholder="1st Semester"
                       />
-                    </div>
+                    </Field>
                   </div>
                 </>
               )}
 
               <Button type="submit" className="w-full h-11" disabled={busy}>
-                {busy ? (
-                  <Loader2 className="size-4 mr-2 animate-spin" />
-                ) : (
-                  <BookOpen className="size-4 mr-2" />
-                )}
+                {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <BookOpen className="size-4 mr-2" />}
                 Save profile and continue
               </Button>
             </form>
           )}
 
-          {loginRole === 'TEACHER' && step === 'auth' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2 p-1 rounded-lg bg-muted/50">
-                <button
-                  type="button"
-                  onClick={() => setTeacherMode('login')}
-                  className={`rounded-md py-2 text-sm font-medium transition-colors ${
-                    teacherMode === 'login'
-                      ? 'bg-background shadow-sm'
-                      : 'text-muted-foreground'
-                  }`}
-                >
-                  Sign in
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTeacherMode('register')}
-                  className={`rounded-md py-2 text-sm font-medium transition-colors ${
-                    teacherMode === 'register'
-                      ? 'bg-background shadow-sm'
-                      : 'text-muted-foreground'
-                  }`}
-                >
-                  Register
-                </button>
-              </div>
-
-              {teacherMode === 'login' ? (
-                <form onSubmit={handleTeacherLogin} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="teacher-email">Email</Label>
-                    <Input
-                      id="teacher-email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="rao@attendx.edu"
-                      required
-                      autoFocus
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="teacher-password">Password</Label>
-                    <Input
-                      id="teacher-password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="w-full h-11" disabled={busy}>
-                    {busy ? (
-                      <Loader2 className="size-4 mr-2 animate-spin" />
-                    ) : (
-                      <Users className="size-4 mr-2" />
-                    )}
-                    Sign in as Teacher
-                  </Button>
-                </form>
-              ) : (
-                <form onSubmit={handleTeacherRegister} className="space-y-3 max-h-[55vh] overflow-y-auto scroll-thin pr-1">
-                  <div className="space-y-1.5">
-                    <Label>Full name</Label>
-                    <Input
-                      value={teacherForm.fullName}
-                      onChange={(e) =>
-                        setTeacherForm((p) => ({ ...p, fullName: e.target.value }))
-                      }
-                      placeholder="Rahul Sharma"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Email</Label>
-                    <Input
-                      type="email"
-                      value={teacherForm.email}
-                      onChange={(e) =>
-                        setTeacherForm((p) => ({ ...p, email: e.target.value }))
-                      }
-                      required
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label>Password</Label>
-                      <Input
-                        type="password"
-                        value={teacherForm.password}
-                        onChange={(e) =>
-                          setTeacherForm((p) => ({ ...p, password: e.target.value }))
-                        }
-                        required
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Confirm</Label>
-                      <Input
-                        type="password"
-                        value={teacherForm.confirm}
-                        onChange={(e) =>
-                          setTeacherForm((p) => ({ ...p, confirm: e.target.value }))
-                        }
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Subject taught</Label>
-                    <Input
-                      value={teacherForm.subjectTaught}
-                      onChange={(e) =>
-                        setTeacherForm((p) => ({
-                          ...p,
-                          subjectTaught: e.target.value,
-                        }))
-                      }
-                      placeholder="Programming"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Institution</Label>
-                    <Input
-                      value={teacherForm.institutionName}
-                      onChange={(e) =>
-                        setTeacherForm((p) => ({
-                          ...p,
-                          institutionName: e.target.value,
-                        }))
-                      }
-                      placeholder="ABC College"
-                    />
-                  </div>
-                  <Button type="submit" className="w-full h-11" disabled={busy}>
-                    {busy ? (
-                      <Loader2 className="size-4 mr-2 animate-spin" />
-                    ) : null}
-                    Create teacher account
-                  </Button>
-                </form>
-              )}
-            </div>
+          {/* ── STEP: TEACHER PROFILE SETUP ──────────────────────────── */}
+          {step === 'teacher-profile' && (
+            <form onSubmit={handleTeacherProfileSave} className="space-y-4">
+              <p className="flex items-start gap-2 text-sm text-muted-foreground">
+                <ShieldCheck className="size-4 mt-0.5 shrink-0 text-primary" />
+                Add the details teachers need — your subject and institution — so
+                you can be matched with classrooms and students.
+              </p>
+              <Field label="Full name" htmlFor="tprofile-name">
+                <Input
+                  id="tprofile-name"
+                  value={teacherProfile.fullName}
+                  onChange={(e) =>
+                    setTeacherProfile((p) => ({ ...p, fullName: e.target.value }))
+                  }
+                  required
+                />
+              </Field>
+              <Field label="Subject(s) taught" htmlFor="tprofile-subject">
+                <Input
+                  id="tprofile-subject"
+                  value={teacherProfile.subjectTaught}
+                  onChange={(e) =>
+                    setTeacherProfile((p) => ({
+                      ...p,
+                      subjectTaught: e.target.value,
+                    }))
+                  }
+                  placeholder="Programming, Data Structures"
+                  required
+                />
+              </Field>
+              <Field label="Institution / School / College" htmlFor="tprofile-institution">
+                <Input
+                  id="tprofile-institution"
+                  value={teacherProfile.institutionName}
+                  onChange={(e) =>
+                    setTeacherProfile((p) => ({
+                      ...p,
+                      institutionName: e.target.value,
+                    }))
+                  }
+                  placeholder="ABC College of Engineering"
+                  required
+                />
+              </Field>
+              <Button type="submit" className="w-full h-11" disabled={busy}>
+                {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <BookOpen className="size-4 mr-2" />}
+                Save and continue
+              </Button>
+            </form>
           )}
         </div>
       </DialogContent>
     </Dialog>
   )
+}
+
+// ── Small building blocks ───────────────────────────────────────────────────
+
+function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string
+  htmlFor?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={htmlFor}>{label}</Label>
+      {children}
+    </div>
+  )
+}
+
+function OrDivider() {
+  return (
+    <div className="relative my-1">
+      <div className="absolute inset-0 flex items-center">
+        <span className="w-full border-t" />
+      </div>
+      <div className="relative flex justify-center text-xs uppercase tracking-wider">
+        <span className="bg-background px-3 text-muted-foreground">or</span>
+      </div>
+    </div>
+  )
+}
+
+function RoleCard({
+  title,
+  desc,
+  icon: Icon,
+  onClick,
+}: {
+  title: string
+  desc: string
+  icon: React.ElementType
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex w-full items-center gap-4 rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
+    >
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <Icon className="size-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold">{title}</p>
+        <p className="text-sm text-muted-foreground">{desc}</p>
+      </div>
+      <span className="text-primary text-sm font-medium opacity-0 transition-opacity group-hover:opacity-100">
+        Continue →
+      </span>
+    </button>
+  )
+}
+
+function useHeader(step: Step, _setStep: (s: Step) => void): {
+  title: string
+  subtitle: string
+  isRole: boolean
+} {
+  switch (step) {
+    case 'role':
+      return {
+        title: 'Welcome to AttendX',
+        subtitle: 'Choose how you want to sign in to continue.',
+        isRole: true,
+      }
+    case 'student-login':
+      return {
+        title: 'Student Sign In',
+        subtitle: 'Sign in securely and track your attendance in one place.',
+        isRole: false,
+      }
+    case 'student-register':
+      return {
+        title: 'Create Student Account',
+        subtitle: 'Register to track your attendance and join classrooms.',
+        isRole: false,
+      }
+    case 'teacher-login':
+      return {
+        title: 'Teacher Sign In',
+        subtitle: 'Sign in to manage classrooms and mark attendance.',
+        isRole: false,
+      }
+    case 'teacher-register':
+      return {
+        title: 'Create Teacher Account',
+        subtitle: 'Register to create classrooms and manage your students.',
+        isRole: false,
+      }
+    case 'personal-login':
+      return {
+        title: 'Personal Tracker Sign In',
+        subtitle: 'Sign in to your personal attendance tracker.',
+        isRole: false,
+      }
+    case 'personal-register':
+      return {
+        title: 'Create Personal Tracker',
+        subtitle: 'Build your own independent attendance tracker.',
+        isRole: false,
+      }
+    case 'student-profile':
+      return {
+        title: 'Complete your profile',
+        subtitle: 'Tell us a little about yourself so we can personalize your dashboard.',
+        isRole: false,
+      }
+    case 'teacher-profile':
+      return {
+        title: 'Complete your teacher profile',
+        subtitle: 'Add your subject and institution to get started.',
+        isRole: false,
+      }
+    default:
+      return { title: 'AttendX', subtitle: '', isRole: true }
+  }
 }

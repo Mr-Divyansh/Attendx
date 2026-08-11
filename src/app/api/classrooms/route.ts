@@ -25,7 +25,72 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
     })
 
-    return json({ classrooms })
+    // Per-classroom attendance summary for each member, so the teacher can see
+    // attendance percentages and advise students who are falling behind.
+    const attendanceByClassroom = await db.attendance.findMany({
+      where: {
+        classroomId: { in: classrooms.map((c) => c.id) },
+      },
+      select: { classroomId: true, studentId: true, status: true },
+    })
+
+    const summaryByClassroom = new Map<
+      string,
+      Map<string, { present: number; late: number; absent: number; total: number }>
+    >()
+    for (const r of attendanceByClassroom) {
+      if (!r.classroomId || !r.studentId) continue
+      let byStudent = summaryByClassroom.get(r.classroomId)
+      if (!byStudent) {
+        byStudent = new Map()
+        summaryByClassroom.set(r.classroomId, byStudent)
+      }
+      let agg = byStudent.get(r.studentId)
+      if (!agg) {
+        agg = { present: 0, late: 0, absent: 0, total: 0 }
+        byStudent.set(r.studentId, agg)
+      }
+      agg.total += 1
+      if (r.status === 'present') agg.present += 1
+      else if (r.status === 'late') agg.late += 1
+      else if (r.status === 'absent') agg.absent += 1
+    }
+
+    const payload = classrooms.map((c) => {
+      const byStudent = summaryByClassroom.get(c.id) ?? new Map()
+      const members = c.members.map((m) => {
+        const agg = byStudent.get(m.studentId) ?? { present: 0, late: 0, absent: 0, total: 0 }
+        const attended = agg.present + agg.late
+        const pct = agg.total > 0 ? Math.round((attended / agg.total) * 100) : null
+        return {
+          id: m.id,
+          status: m.status,
+          joinedAt: m.joinedAt,
+          student: {
+            id: m.student.id,
+            fullName: m.student.fullName,
+            rollNo: m.student.hasRollNumber ? m.student.rollNo : '—',
+            userId: m.student.userId,
+          },
+          attendance: { ...agg, pct },
+        }
+      })
+      return {
+        id: c.id,
+        publicId: c.publicId,
+        name: c.name,
+        subject: c.subject,
+        course: c.course,
+        section: c.section,
+        academicYear: c.academicYear,
+        joinCode: c.joinCode,
+        inviteToken: c.inviteToken,
+        createdAt: c.createdAt,
+        members,
+      }
+    })
+
+    return json({ classrooms: payload })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
     return errorResponse('Unable to load classrooms', 500)

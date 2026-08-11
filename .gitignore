@@ -26,3 +26,7 @@ prisma/dev.db*
 *.pem
 .vercel
 .netlify
+
+# Google OAuth client secret files (NEVER commit)
+client_secret_*.json
+.env

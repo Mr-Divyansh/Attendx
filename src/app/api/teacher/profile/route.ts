@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError } from '@/lib/auth'
+import { requireRole, parseBody, json, errorResponse, AuthError, validateCsrfToken } from '@/lib/auth'
 
 export async function GET() {
   try {
@@ -33,6 +33,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('TEACHER')
+    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
+      throw new AuthError('Invalid or missing CSRF token', 403)
+    }
     if (!session.teacherId) return errorResponse('Teacher profile missing', 403)
 
     const body = await parseBody<{
@@ -57,7 +60,17 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    return json({ ok: true, teacher: updated })
+    return json({
+      ok: true,
+      teacher: {
+        id: updated.id,
+        fullName: updated.fullName,
+        subjectTaught: updated.subjectTaught,
+        institutionName: updated.institutionName,
+        departmentLabel: updated.departmentLabel,
+        profileComplete: updated.profileComplete,
+      },
+    })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
     return errorResponse('Unable to save profile', 500)
