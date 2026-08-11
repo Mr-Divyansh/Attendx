@@ -29,4 +29,3 @@ prisma/dev.db*
 
 # Google OAuth client secret files (NEVER commit)
 client_secret_*.json
-.env
