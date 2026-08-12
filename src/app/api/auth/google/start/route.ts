@@ -2,8 +2,8 @@ import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import {
-  getGoogleCallbackUrl,
-  isGoogleOAuthConfigured,
+  getGoogleOAuthConfig,
+  OAuthConfigurationError,
   signOAuthState,
   OAUTH_STATE_COOKIE,
 } from '@/lib/oauth'
@@ -13,19 +13,13 @@ import { errorResponse,
 
 export async function GET(req: NextRequest) {
   try {
-    if (!isGoogleOAuthConfigured()) {
-      return errorResponse(
-        'Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your environment.',
-        503
-      )
-    }
-
     const role = req.nextUrl.searchParams.get('role') || 'STUDENT'
     if (role !== 'STUDENT' && role !== 'TEACHER') {
       return errorResponse('Google sign-in is only available for students and teachers', 400)
     }
 
     const nonce = crypto.randomUUID()
+    const config = getGoogleOAuthConfig(req)
     const state = signOAuthState({ role, nonce })
 
     const store = await cookies()
@@ -37,10 +31,9 @@ export async function GET(req: NextRequest) {
       maxAge: 600,
     })
 
-    const redirectUri = getGoogleCallbackUrl()
     const params = new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      redirect_uri: redirectUri,
+      client_id: config.clientId,
+      redirect_uri: config.callbackUrl,
       response_type: 'code',
       scope: 'openid email profile',
       state,
@@ -53,6 +46,10 @@ export async function GET(req: NextRequest) {
     )
 
   } catch (e) {
+    if (e instanceof OAuthConfigurationError) {
+      console.error('[auth/google/start] configuration error', { code: e.code })
+      return errorResponse('Google sign-in is temporarily unavailable. Please contact the administrator.', 503)
+    }
     return handleRouteError(e, 'auth/google/start')
   }
 }

@@ -9,7 +9,8 @@ import {
 } from '@/lib/auth'
 import {
   exchangeGoogleCode,
-  getAppUrl,
+  getGoogleOAuthConfig,
+  OAuthConfigurationError,
   verifyOAuthState,
   OAUTH_STATE_COOKIE,
 } from '@/lib/oauth'
@@ -53,20 +54,15 @@ async function upsertGoogleStudent(profile: GoogleProfile) {
       throw new Error('DISABLED')
     }
 
-    await db.authAccount.upsert({
-      where: {
-        provider_providerAccountId: {
-          provider: 'google',
-          providerAccountId: profile.sub,
-        },
-      },
-      update: { userId: user.id },
-      create: {
-        userId: user.id,
-        provider: 'google',
-        providerAccountId: profile.sub,
-      },
+    const account = await db.authAccount.findUnique({
+      where: { provider_providerAccountId: { provider: 'google', providerAccountId: profile.sub } },
     })
+    if (account && account.userId !== user.id) throw new Error('ACCOUNT_CONFLICT')
+    if (!account) {
+      await db.authAccount.create({
+        data: { userId: user.id, provider: 'google', providerAccountId: profile.sub },
+      })
+    }
 
     if (!user.student) {
       user = await db.user.update({
@@ -124,20 +120,15 @@ async function upsertGoogleTeacher(profile: GoogleProfile) {
       throw new Error('DISABLED')
     }
 
-    await db.authAccount.upsert({
-      where: {
-        provider_providerAccountId: {
-          provider: 'google',
-          providerAccountId: profile.sub,
-        },
-      },
-      update: { userId: user.id },
-      create: {
-        userId: user.id,
-        provider: 'google',
-        providerAccountId: profile.sub,
-      },
+    const account = await db.authAccount.findUnique({
+      where: { provider_providerAccountId: { provider: 'google', providerAccountId: profile.sub } },
     })
+    if (account && account.userId !== user.id) throw new Error('ACCOUNT_CONFLICT')
+    if (!account) {
+      await db.authAccount.create({
+        data: { userId: user.id, provider: 'google', providerAccountId: profile.sub },
+      })
+    }
 
     if (!user.teacher) {
       user = await db.user.update({
@@ -160,7 +151,8 @@ async function upsertGoogleTeacher(profile: GoogleProfile) {
 
 export async function GET(req: NextRequest) {
   try {
-    const appUrl = getAppUrl()
+    const config = getGoogleOAuthConfig(req)
+    const appUrl = config.appUrl
     const code = req.nextUrl.searchParams.get('code')
     const state = req.nextUrl.searchParams.get('state')
     const oauthError = req.nextUrl.searchParams.get('error')
@@ -187,7 +179,7 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-      const profile = await exchangeGoogleCode(code)
+      const profile = await exchangeGoogleCode(code, config)
 
       if (parsed.role === 'TEACHER') {
         const user = await upsertGoogleTeacher(profile)
@@ -232,11 +224,22 @@ export async function GET(req: NextRequest) {
       if (msg === 'DISABLED') {
         return Response.redirect(`${appUrl}/?auth_error=account_disabled`)
       }
-      console.error('[google/callback]', e)
+      if (msg === 'ACCOUNT_CONFLICT') {
+        return Response.redirect(`${appUrl}/?auth_error=account_conflict`)
+      }
+      console.error('[auth/google/callback] failed', {
+        code: msg === 'GOOGLE_TOKEN_EXCHANGE_FAILED' || msg === 'GOOGLE_PROFILE_VERIFICATION_FAILED'
+          ? msg
+          : 'OAUTH_CALLBACK_FAILED',
+      })
       return Response.redirect(`${appUrl}/?auth_error=oauth_failed`)
     }
 
   } catch (e) {
+    if (e instanceof OAuthConfigurationError) {
+      console.error('[auth/google/callback] configuration error', { code: e.code })
+      return Response.redirect(`${new URL(req.url).origin}/?auth_error=oauth_unavailable`)
+    }
     return handleRouteError(e, 'auth/google/callback')
   }
 }

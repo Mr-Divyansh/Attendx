@@ -36,18 +36,27 @@ type SessionPayload = {
   sig: string
 }
 
-const ATTENDX_SECRET = process.env.ATTENDX_SECRET
-const SECRET = ATTENDX_SECRET || 'attendx-dev-secret-change-me'
+export class ConfigurationError extends Error {
+  constructor(readonly code: 'missing_session_secret') {
+    super(code)
+  }
+}
 
 function getSecret(): string {
-  if (process.env.NODE_ENV === 'production' && !ATTENDX_SECRET) {
+  const secret = process.env.ATTENDX_SECRET?.trim()
+  if (process.env.NODE_ENV === 'production' && !secret) {
     throw new Error(
       'ATTENDX_SECRET environment variable is not set. Set it in your hosting provider\'s ' +
         'environment variables (Netlify: Site settings → Environment variables) to a long ' +
         'random string before deploying to production.'
     )
   }
-  return SECRET
+  return secret || 'attendx-dev-secret-change-me'
+}
+
+/** Preflight signing configuration before routes write account data. */
+export function assertSessionConfiguration(): void {
+  getSecret()
 }
 
 function sign(data: string): string {
