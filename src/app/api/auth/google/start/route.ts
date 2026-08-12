@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import {
-  getAppUrl,
+  getGoogleCallbackUrl,
   isGoogleOAuthConfigured,
   signOAuthState,
   OAUTH_STATE_COOKIE,
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
       maxAge: 600,
     })
 
-    const redirectUri = `${getAppUrl()}/api/auth/google/callback`
+    const redirectUri = getGoogleCallbackUrl()
     const params = new URLSearchParams({
       client_id: process.env.GOOGLE_CLIENT_ID!,
       redirect_uri: redirectUri,

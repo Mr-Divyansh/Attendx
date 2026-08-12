@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     const existing = await db.user.findUnique({ where: { email } })
     if (existing) return errorResponse('Email already in use', 409)
 
-    const existingRoll = await db.student.findUnique({ where: { rollNo } })
+    const existingRoll = await db.student.findFirst({ where: { rollNo } })
     if (existingRoll) return errorResponse('Roll number already in use', 409)
 
     const user = await db.user.create({

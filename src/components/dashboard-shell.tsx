@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 import { useAuth, type View } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
@@ -13,10 +14,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Moon, Sun, LogOut, ChevronDown, KeyRound } from 'lucide-react'
+import { Moon, Sun, LogOut, ChevronDown, KeyRound, Menu } from 'lucide-react'
 import Image from 'next/image'
 import { useTheme } from 'next-themes'
 import { ChangePasswordDialog } from '@/components/change-password-dialog'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 
 export type NavItem = {
   id: string
@@ -29,6 +37,7 @@ export function DashboardShell({
   active,
   onNavigate,
   title,
+  description,
   accent = 'Student',
   children,
 }: {
@@ -36,12 +45,15 @@ export function DashboardShell({
   active: string
   onNavigate: (id: string) => void
   title: string
+  description?: string
   accent?: string
   children: React.ReactNode
 }) {
   const { user, logout } = useAuth()
+  const router = useRouter()
   const { setTheme } = useTheme()
   const [passwordOpen, setPasswordOpen] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const initials = (user?.name || 'U')
     .split(' ')
@@ -53,7 +65,7 @@ export function DashboardShell({
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
-      <aside className="hidden md:flex w-60 flex-col border-r bg-sidebar">
+      <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r bg-sidebar">
         <div className="h-16 flex items-center gap-2 px-5 border-b">
           <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border bg-card/80 shadow-sm">
             <Image
@@ -92,7 +104,7 @@ export function DashboardShell({
             variant="ghost"
             size="sm"
             className="w-full justify-start text-muted-foreground"
-            onClick={() => (window.location.href = '/')}
+            onClick={() => router.push('/')}
           >
             <LogOut className="size-4 mr-2" />
             Back to home
@@ -102,9 +114,43 @@ export function DashboardShell({
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 border-b glass sticky top-0 z-30 flex items-center justify-between px-4 md:px-6">
+        <header className="min-h-16 border-b glass sticky top-0 z-30 flex items-center justify-between gap-3 px-4 md:px-6 py-3">
           <div className="flex items-center gap-3 min-w-0">
-            <h1 className="font-semibold text-lg truncate">{title}</h1>
+            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="lg:hidden shrink-0" aria-label="Open navigation">
+                  <Menu className="size-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[min(19rem,86vw)] p-0">
+                <SheetHeader className="flex h-16 flex-row items-center gap-2 border-b px-5 text-left">
+                  <div className="flex size-8 items-center justify-center overflow-hidden rounded-lg border bg-card">
+                    <Image src="/Attendx-logo.png" alt="AttendX logo" width={32} height={32} className="size-full object-contain" />
+                  </div>
+                  <SheetTitle>AttendX</SheetTitle>
+                </SheetHeader>
+                <div className="p-3">
+                  <p className="px-3 pb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">{accent}</p>
+                  <nav className="space-y-1" aria-label={`${accent} navigation`}>
+                    {nav.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => { onNavigate(item.id); setMobileNavOpen(false) }}
+                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${active === item.id ? 'bg-primary text-primary-foreground' : 'hover:bg-sidebar-accent'}`}
+                      >
+                        <item.icon className="size-4" />
+                        {item.label}
+                      </button>
+                    ))}
+                  </nav>
+                </div>
+              </SheetContent>
+            </Sheet>
+            <div className="min-w-0">
+              <p className="hidden text-xs font-medium uppercase tracking-wider text-muted-foreground sm:block">{accent}</p>
+              <h1 className="font-semibold text-lg truncate">{title}</h1>
+              {description && <p className="hidden text-sm text-muted-foreground md:block">{description}</p>}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -156,26 +202,6 @@ export function DashboardShell({
             <ChangePasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} />
           </div>
         </header>
-
-        {/* Mobile nav */}
-        <div className="md:hidden border-b bg-card overflow-x-auto scroll-thin">
-          <div className="flex gap-1 p-2 min-w-max">
-            {nav.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => onNavigate(item.id)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                  active === item.id
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-accent'
-                }`}
-              >
-                <item.icon className="size-4" />
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <main className="flex-1 p-4 md:p-6 overflow-x-hidden">{children}</main>
       </div>

@@ -60,7 +60,7 @@ export async function PUT(
     }
 
     if (body.rollNo && body.rollNo !== student.rollNo) {
-      const clash = await db.student.findUnique({ where: { rollNo: body.rollNo } })
+      const clash = await db.student.findFirst({ where: { rollNo: body.rollNo } })
       if (clash && clash.id !== id) {
         return errorResponse('Roll number already in use', 409)
       }

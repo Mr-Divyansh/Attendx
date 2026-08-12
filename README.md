@@ -41,6 +41,9 @@ shadcn/ui.
    - `DATABASE_URL` — your Postgres connection string (skip if the Netlify DB
      extension already set it)
    - `ATTENDX_SECRET` — a long random string, e.g. output of `openssl rand -hex 32`
+   - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` — credentials for a Google Cloud Web OAuth client
+   - `GOOGLE_CALLBACK_URL` — `https://<your-site>.netlify.app/api/auth/google/callback`
+     (recommended in production so the configured redirect is unambiguous)
 3. Push this code to your GitHub repo (`git push`), connect the repo in Netlify — it
    will auto-detect `netlify.toml` and build with `@netlify/plugin-nextjs`.
 4. After the first deploy, run the schema against your new database once (from your

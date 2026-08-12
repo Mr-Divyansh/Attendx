@@ -79,7 +79,11 @@ export const useAuth = create<AuthState>((set, get) => ({
     }),
 
   logout: async () => {
-    await fetch('/api/auth/logout', { method: 'POST' })
+    const csrf = get().csrfToken
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: csrf ? { 'x-csrf-token': csrf } : undefined,
+    })
     set({ user: null, view: 'landing', loginRole: null, csrfToken: null, forceProfileSetup: false })
   },
 

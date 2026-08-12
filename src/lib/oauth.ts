@@ -16,8 +16,24 @@ export function getAppUrl(): string {
   ).replace(/\/$/, '')
 }
 
+/**
+ * The URL Google redirects to. Keep this separate from the application URL so
+ * Netlify preview and production deployments can use their own callback URLs.
+ */
+export function getGoogleCallbackUrl(): string {
+  return (process.env.GOOGLE_CALLBACK_URL || `${getAppUrl()}/api/auth/google/callback`).replace(/\/$/, '')
+}
+
+function getOAuthSecret(): string {
+  const secret = process.env.ATTENDX_SECRET
+  if (process.env.NODE_ENV === 'production' && !secret) {
+    throw new Error('ATTENDX_SECRET environment variable is not set')
+  }
+  return secret || 'attendx-dev-secret-change-me'
+}
+
 export function signOAuthState(payload: { role: string; nonce: string }): string {
-  const secret = process.env.ATTENDX_SECRET || 'attendx-dev-secret-change-me'
+  const secret = getOAuthSecret()
   const json = JSON.stringify(payload)
   const b64 = Buffer.from(json).toString('base64url')
   const sig = crypto.createHmac('sha256', secret).update(b64).digest('hex')
@@ -25,11 +41,13 @@ export function signOAuthState(payload: { role: string; nonce: string }): string
 }
 
 export function verifyOAuthState(token: string): { role: string; nonce: string } | null {
-  const secret = process.env.ATTENDX_SECRET || 'attendx-dev-secret-change-me'
+  const secret = getOAuthSecret()
   const [b64, sig] = token.split('.')
   if (!b64 || !sig) return null
   const expected = crypto.createHmac('sha256', secret).update(b64).digest('hex')
-  if (expected !== sig) return null
+  const expectedBuffer = Buffer.from(expected, 'hex')
+  const actualBuffer = Buffer.from(sig, 'hex')
+  if (expectedBuffer.length !== actualBuffer.length || !crypto.timingSafeEqual(expectedBuffer, actualBuffer)) return null
   try {
     return JSON.parse(Buffer.from(b64, 'base64url').toString('utf8'))
   } catch {
@@ -47,7 +65,7 @@ export type GoogleProfile = {
 }
 
 export async function exchangeGoogleCode(code: string): Promise<GoogleProfile> {
-  const redirectUri = `${getAppUrl()}/api/auth/google/callback`
+  const redirectUri = getGoogleCallbackUrl()
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

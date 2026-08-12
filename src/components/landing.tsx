@@ -119,28 +119,22 @@ export function Landing() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="relative border-b bg-muted/40 overflow-hidden">
-        {/* Decorative glow + blueprint grid (purely visual) */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 hero-glow" />
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 hero-grid" />
-        <div className="relative mx-auto w-full max-w-6xl px-4 py-20 md:py-28 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border bg-card px-4 py-1.5 text-xs font-medium text-muted-foreground mb-6 shadow-sm">
+      <section className="border-b bg-muted/35">
+        <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 py-16 md:grid-cols-[1.15fr_0.85fr] md:py-24">
+          <div>
+          <div className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground mb-6">
             <CheckCircle2 className="size-3.5 text-primary" />
             Student attendance, managed properly
           </div>
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight max-w-3xl mx-auto leading-[1.08]">
-            Smart attendance for{' '}
-            <span className="bg-gradient-to-r from-primary via-chart-2 to-chart-5 bg-clip-text text-transparent">
-              students &amp; teachers
-            </span>
+          <h1 className="max-w-3xl text-4xl font-semibold tracking-tight md:text-5xl md:leading-[1.08]">
+            Clear attendance, better decisions.
           </h1>
-          <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
             AttendX is a clean, secure platform where teachers mark attendance and
             students track their progress — with clear analytics and classroom
             management in one place.
           </p>
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <div className="mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
             <Button
               onClick={() => openLogin('STUDENT')}
               className="min-w-[200px] h-11 shadow-sm"
@@ -155,8 +149,11 @@ export function Landing() {
               Teacher access
             </Button>
           </div>
-          {/* How it works (factual) */}
-          <div className="mt-14 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto text-left">
+          </div>
+          <aside className="rounded-xl border bg-card p-6 shadow-sm md:p-7" aria-label="How AttendX works">
+            <p className="text-sm font-semibold">One reliable workflow</p>
+            <p className="mt-1 text-sm text-muted-foreground">Designed for the people who use attendance data every day.</p>
+          <div className="mt-6 space-y-4 text-left">
             {[
               { n: '1', t: 'Sign in', d: 'As a student or teacher with email, password or Google.' },
               { n: '2', t: 'Mark & track', d: 'Teachers mark attendance; students see it instantly.' },
@@ -164,7 +161,7 @@ export function Landing() {
             ].map((s) => (
               <div
                 key={s.n}
-                className="flex items-start gap-3 rounded-xl border bg-card/70 px-4 py-3.5"
+                className="flex items-start gap-3"
               >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
                   {s.n}
@@ -177,7 +174,7 @@ export function Landing() {
                 </div>
               </div>
             ))}
-          </div>
+          </div></aside>
         </div>
       </section>
 
