@@ -31,7 +31,7 @@ shadcn/ui.
 - Added a `.gitignore` (there wasn't one — risk of accidentally committing
   `node_modules`, `.env`, build output).
 
-## Deploying to Netlify
+## Deploying to Vercel
 
 1. **Get a Postgres database.** Easiest: in your Netlify site, go to
    **Extensions -> Database** and provision one (powered by Neon) — it sets

@@ -94,6 +94,10 @@ type SubjectRow = {
   late: number
   attended: number
   pct: number
+  hasAttendance: boolean
+  teacherName: string | null
+  sectionName: string | null
+  semesterName: string | null
 }
 
 type SubjectsResp = { subjects: SubjectRow[] }
@@ -757,13 +761,13 @@ export function StudentDashboard() {
                     </TableHeader>
                     <TableBody>
                       {subjects.map((s) => {
-                        const st = labelForPct(s.pct, threshold)
+                        const st = s.hasAttendance ? labelForPct(s.pct, threshold) : null
                         return (
                           <TableRow key={s.subjectId}>
                             <TableCell className="pl-4 font-mono text-xs text-muted-foreground">
                               {s.code}
                             </TableCell>
-                            <TableCell className="font-medium">{s.name}</TableCell>
+                            <TableCell className="font-medium"><div>{s.name}</div>{s.teacherName && <div className="mt-0.5 text-xs font-normal text-muted-foreground">{s.teacherName}{s.sectionName ? ` · ${s.sectionName}` : ''}</div>}</TableCell>
                             <TableCell className="text-center">
                               <span className="text-emerald-600 dark:text-emerald-400">
                                 {s.present}
@@ -783,10 +787,10 @@ export function StudentDashboard() {
                               {s.total}
                             </TableCell>
                             <TableCell className="text-center font-semibold">
-                              {s.pct}%
+                              {s.hasAttendance ? `${s.pct}%` : '—'}
                             </TableCell>
                             <TableCell className="text-right pr-4">
-                              <Badge className={st.className}>{st.label}</Badge>
+                              {st ? <Badge className={st.className}>{st.label}</Badge> : <Badge variant="secondary">Not marked yet</Badge>}
                             </TableCell>
                           </TableRow>
                         )

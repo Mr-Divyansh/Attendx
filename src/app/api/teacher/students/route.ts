@@ -1,23 +1,27 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, json, errorResponse, AuthError } from '@/lib/auth'
+import { requireRole, json, errorResponse, AuthError, handleRouteError } from '@/lib/auth'
 
-// GET /api/teacher/students?sectionId= — students in that section ordered by rollNo.
-// Returns [{ id, rollNo, fullName }].
 export async function GET(req: NextRequest) {
   try {
-    await requireRole('TEACHER')
+    const session = await requireRole('TEACHER')
+    const teacherId = session.teacherId
     const sectionId = req.nextUrl.searchParams.get('sectionId')
-    if (!sectionId) return errorResponse('sectionId is required', 400)
+    const subjectId = req.nextUrl.searchParams.get('subjectId')
+    if (!teacherId) return errorResponse('Teacher profile missing', 403)
+    if (!sectionId || !subjectId) return errorResponse('sectionId and subjectId are required', 400)
 
-    const students = await db.student.findMany({
+    const hasAccess = await db.subject.count({ where: { id: subjectId, sectionId, teacherId } }) ||
+      await db.timetable.count({ where: { teacherId, sectionId, subjectId } })
+    if (!hasAccess) return errorResponse('Subject not found for this teacher', 404)
+
+    return json(await db.student.findMany({
       where: { sectionId },
       orderBy: { rollNo: 'asc' },
       select: { id: true, rollNo: true, fullName: true },
-    })
-    return json(students)
+    }))
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    throw e
+    return handleRouteError(e, 'teacher/students')
   }
 }

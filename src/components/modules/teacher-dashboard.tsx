@@ -323,12 +323,17 @@ export function TeacherDashboard() {
       .then(setSubjects)
       .catch(() => toast.error('Failed to load subjects'))
       .finally(() => setLoadingSubj(false))
+  }, [sectionId])
+
+  useEffect(() => {
+    setStudents([])
+    if (!sectionId || !subjectId) return
     setLoadingStu(true)
-    apiFetch<Student[]>(`/api/teacher/students?sectionId=${sectionId}`)
+    apiFetch<Student[]>(`/api/teacher/students?sectionId=${sectionId}&subjectId=${subjectId}`)
       .then(setStudents)
       .catch(() => toast.error('Failed to load students'))
       .finally(() => setLoadingStu(false))
-  }, [sectionId])
+  }, [sectionId, subjectId])
 
   // ── fetch attendance (periods + records + editable) when subject+date set ──
   // NOTE: this effect does not touch `period`. The effective period is derived
@@ -872,7 +877,9 @@ function MarkAttendanceFlow(props: FlowProps) {
 
         {/* Step content */}
         <div className="rounded-lg border bg-muted/30 p-4 sm:p-6 min-h-[160px]">
-          {step === 1 && (
+          {step === 1 && (semesters.length === 0 && !loadingSem ? (
+            <EmptyPanel title="No semesters available" description="Ask an administrator to assign a subject or timetable slot to your account." />
+          ) : (
             <StepSelect
               label="Select Semester"
               icon={GraduationCap}
@@ -882,7 +889,7 @@ function MarkAttendanceFlow(props: FlowProps) {
               options={semesters.map((s) => ({ value: s.id, label: s.name }))}
               onValueChange={onSemesterChange}
             />
-          )}
+          ))}
 
           {step === 2 && (
             <StepSelect
@@ -1071,6 +1078,15 @@ function StepSelect({
           </SelectContent>
         </Select>
       )}
+    </div>
+  )
+}
+
+function EmptyPanel({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="flex min-h-28 flex-col items-center justify-center text-center">
+      <p className="text-sm font-medium">{title}</p>
+      <p className="mt-1 max-w-md text-sm text-muted-foreground">{description}</p>
     </div>
   )
 }
@@ -1391,7 +1407,8 @@ function ClassroomsPanel({
                     <p className="text-xs text-muted-foreground mt-1 font-mono">Class ID: {c.publicId}</p>
                   ) : null}
                 </div>
-                <Badge variant="outline">{c.members.filter((m) => m.status === 'ACTIVE').length} active</Badge>
+                <Badge variant="outline">{c.members.length} enrolled</Badge>
+                <Badge variant="secondary">{c.members.filter((m) => m.status === 'ACTIVE').length} active</Badge>
               </div>
               <div className="flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs">

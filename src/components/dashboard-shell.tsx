@@ -18,6 +18,7 @@ import { Moon, Sun, LogOut, ChevronDown, KeyRound, Menu } from 'lucide-react'
 import Image from 'next/image'
 import { useTheme } from 'next-themes'
 import { ChangePasswordDialog } from '@/components/change-password-dialog'
+import { SiteFooter } from '@/components/site-footer'
 import {
   Sheet,
   SheetContent,
@@ -204,6 +205,7 @@ export function DashboardShell({
         </header>
 
         <main className="flex-1 p-4 md:p-6 overflow-x-hidden">{children}</main>
+        <SiteFooter compact />
       </div>
     </div>
   )

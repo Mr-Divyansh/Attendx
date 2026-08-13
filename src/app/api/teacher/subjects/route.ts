@@ -1,31 +1,26 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, json, errorResponse, AuthError } from '@/lib/auth'
+import { requireRole, json, errorResponse, AuthError, handleRouteError } from '@/lib/auth'
 
-// GET /api/teacher/subjects?sectionId= — distinct subjects taught by this
-// teacher in that section (from the timetable). Returns [{ id, code, name }].
+type SubjectOption = { id: string; code: string; name: string }
+
 export async function GET(req: NextRequest) {
   try {
     const session = await requireRole('TEACHER')
-    const teacherId = session.teacherId!
+    const teacherId = session.teacherId
     const sectionId = req.nextUrl.searchParams.get('sectionId')
+    if (!teacherId) return errorResponse('Teacher profile missing', 403)
     if (!sectionId) return errorResponse('sectionId is required', 400)
 
-    const slots = await db.timetable.findMany({
-      where: { teacherId, sectionId },
-      select: { subjectId: true },
-    })
-    const subjIds = new Set<string>()
-    for (const s of slots) if (s.subjectId) subjIds.add(s.subjectId)
-
-    const subjects = await db.subject.findMany({
-      where: { id: { in: [...subjIds] } },
-      orderBy: { code: 'asc' },
-      select: { id: true, code: true, name: true },
-    })
-    return json(subjects)
+    const [assigned, slots] = await Promise.all([
+      db.subject.findMany({ where: { teacherId, sectionId }, select: { id: true, code: true, name: true } }),
+      db.timetable.findMany({ where: { teacherId, sectionId, subjectId: { not: null } }, select: { subject: { select: { id: true, code: true, name: true } } } }),
+    ])
+    const byId = new Map<string, SubjectOption>(assigned.map((subject) => [subject.id, subject]))
+    for (const slot of slots) if (slot.subject) byId.set(slot.subject.id, slot.subject)
+    return json(Array.from(byId.values()).sort((a, b) => a.code.localeCompare(b.code)))
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    throw e
+    return handleRouteError(e, 'teacher/subjects')
   }
 }

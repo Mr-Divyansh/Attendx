@@ -45,11 +45,13 @@ export class ConfigurationError extends Error {
 function getSecret(): string {
   const secret = process.env.ATTENDX_SECRET?.trim()
   if (process.env.NODE_ENV === 'production' && !secret) {
-    throw new Error(
+    throw new ConfigurationError('missing_session_secret')
+    /*
       'ATTENDX_SECRET environment variable is not set. Set it in your hosting provider\'s ' +
         'environment variables (Netlify: Site settings → Environment variables) to a long ' +
         'random string before deploying to production.'
-    )
+  }
+  */
   }
   return secret || 'attendx-dev-secret-change-me'
 }
@@ -301,6 +303,11 @@ export function handleRouteError(e: unknown, context: string): Response {
   // password, missing CSRF token, account disabled) instead of the true error.
   if (e instanceof AuthError) {
     return errorResponse(e.message, e.status)
+  }
+
+  if (e instanceof ConfigurationError) {
+    console.error(`[${context}] configuration error:`, { code: e.code })
+    return errorResponse('Authentication is temporarily unavailable. Please try again later.', 503)
   }
 
   // Prisma errors carry a `.code` (e.g. "P1001") separately from `.message`,
