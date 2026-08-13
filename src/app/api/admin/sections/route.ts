@@ -50,7 +50,9 @@ export async function POST(req: NextRequest) {
     const name = body.name?.trim()
     if (!name) return errorResponse('name is required', 400)
 
-    const clash = await db.section.findUnique({ where: { name } })
+    // Teacher-owned sections may legitimately reuse labels such as "A". The
+    // admin catalogue only needs to guard against another admin-owned label.
+    const clash = await db.section.findFirst({ where: { name, teacherId: null } })
     if (clash) return errorResponse('Section name already exists', 409)
 
     const section = await db.section.create({

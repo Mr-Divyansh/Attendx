@@ -51,9 +51,11 @@ export async function POST(req: NextRequest) {
       return errorResponse('name and number are required', 400)
     }
 
-    const nameClash = await db.semester.findUnique({ where: { name } })
+    // Custom teacher semesters/classes are scoped to their teacher, so they do
+    // not conflict with the administrator's global academic structure.
+    const nameClash = await db.semester.findFirst({ where: { name, teacherId: null } })
     if (nameClash) return errorResponse('Semester name already exists', 409)
-    const numClash = await db.semester.findUnique({ where: { number } })
+    const numClash = await db.semester.findFirst({ where: { number, teacherId: null } })
     if (numClash) return errorResponse('Semester number already exists', 409)
 
     const sem = await db.semester.create({ data: { name, number } })
