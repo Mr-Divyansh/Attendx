@@ -13,6 +13,7 @@ export async function GET() {
           include: {
             teacher: true,
             subject: true,
+            semester: { select: { id: true, name: true } },
             schedules: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] },
           },
         },
@@ -20,7 +21,18 @@ export async function GET() {
       orderBy: { joinedAt: 'desc' },
     })
 
-    return json({ classrooms: memberships.map((m) => ({ ...m.classroom, status: m.status })) })
+    return json({
+      classrooms: memberships.map((m) => {
+        const now = Date.now()
+        const expired = !!m.classroom.expiresAt && m.classroom.expiresAt.getTime() < now
+        return {
+          ...m.classroom,
+          status: m.status,
+          expired,
+          classroomStatus: expired ? 'EXPIRED' : 'ACTIVE',
+        }
+      }),
+    })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
     return handleRouteError(e, 'student/classrooms')

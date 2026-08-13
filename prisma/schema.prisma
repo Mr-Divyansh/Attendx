@@ -189,6 +189,9 @@ model Classroom {
   teachingMode String?           @default("COLLEGE")
   room         String?
   academicYear String?
+  year         Int? // academic year of study: 1–4 (Year 1, Year 2, …)
+  durationYears Int? // intended validity of the classroom: 1–4 years
+  expiresAt    DateTime? // computed end of class validity (createdAt + durationYears)
   joinCode     String            @unique
   inviteToken  String            @unique
   createdAt    DateTime          @default(now())

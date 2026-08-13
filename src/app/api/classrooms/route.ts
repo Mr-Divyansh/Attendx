@@ -20,8 +20,9 @@ export async function GET() {
       where: { teacherId: session.teacherId },
       include: {
         subject: true,
+        semester: { select: { id: true, name: true } },
         schedules: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] },
-        members: { include: { student: true } },
+        members: { include: { student: { include: { user: { select: { email: true } } } } } },
       },
       orderBy: { createdAt: 'desc' },
     })
@@ -72,18 +73,27 @@ export async function GET() {
             fullName: m.student.fullName,
             rollNo: m.student.hasRollNumber ? m.student.rollNo : '—',
             userId: m.student.userId,
+            email: m.student.user?.email ?? null,
           },
           attendance: { ...agg, pct },
         }
       })
+      const now = Date.now()
+      const expired = !!c.expiresAt && c.expiresAt.getTime() < now
       return {
         id: c.id,
         publicId: c.publicId,
         name: c.name,
         subject: c.subject,
+        semester: c.semester,
         course: c.course,
         section: c.section,
         academicYear: c.academicYear,
+        year: c.year,
+        durationYears: c.durationYears,
+        expiresAt: c.expiresAt,
+        expired,
+        status: expired ? 'EXPIRED' : 'ACTIVE',
         semesterId: c.semesterId,
         sectionId: c.sectionId,
         teachingMode: c.teachingMode,
@@ -121,9 +131,20 @@ export async function POST(req: NextRequest) {
       sectionId?: string
       teachingMode?: 'SCHOOL' | 'COLLEGE'
       room?: string
+      year?: number | string
+      durationYears?: number | string
     }>(req)
 
     if (!body.name?.trim()) return errorResponse('Classroom name is required', 400)
+
+    const year = body.year == null || body.year === '' ? null : Number(body.year)
+    const durationYears = body.durationYears == null || body.durationYears === '' ? null : Number(body.durationYears)
+    if (year != null && (!Number.isInteger(year) || year < 1 || year > 4)) {
+      return errorResponse('Year must be between Year 1 and Year 4', 400)
+    }
+    if (durationYears != null && (!Number.isInteger(durationYears) || durationYears < 1 || durationYears > 4)) {
+      return errorResponse('Class duration must be between 1 and 4 years', 400)
+    }
 
     if (body.subjectId) {
       const subject = await db.subject.findFirst({ where: { id: body.subjectId, teacherId: session.teacherId } })
@@ -142,6 +163,9 @@ export async function POST(req: NextRequest) {
         sectionId: body.sectionId || null,
         teachingMode: body.teachingMode === 'SCHOOL' ? 'SCHOOL' : 'COLLEGE',
         room: body.room?.trim() || null,
+        year,
+        durationYears,
+        expiresAt: durationYears ? new Date(Date.now() + durationYears * 365.25 * 24 * 60 * 60 * 1000) : null,
         joinCode: makeJoinCode(),
         inviteToken: makeInviteToken(),
       },

@@ -31,11 +31,18 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.action === 'approve') {
+      // Only convert a real pending request. If the request was already
+      // accepted, the same member row is now ACTIVE — respond successfully
+      // instead of double-approving.
+      if (member.status === 'ACTIVE') return json({ ok: true, already: true })
+      if (member.status !== 'PENDING') return errorResponse('Request is no longer pending', 400)
       await db.classroomMember.update({
         where: { id: member.id },
         data: { status: 'ACTIVE' },
       })
     } else {
+      // Reject deletes the membership (pending request or active member),
+      // so the student never remains an approved member.
       await db.classroomMember.delete({ where: { id: member.id } })
     }
 

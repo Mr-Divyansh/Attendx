@@ -128,6 +128,15 @@ type ClassroomRow = {
   id: string
   publicId?: string
   name: string
+  course?: string | null
+  section?: string | null
+  year?: number | null
+  durationYears?: number | null
+  expiresAt?: string | null
+  expired?: boolean
+  academicYear?: string | null
+  teachingMode?: string | null
+  semester?: { id: string; name: string } | null
   subject?: { name: string } | null
   teacher?: { fullName: string } | null
   joinCode: string
@@ -423,13 +432,36 @@ export function StudentDashboard() {
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <p className="font-semibold">{c.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {c.course || 'Course not set'}
+                            {c.year ? ` · Year ${c.year}` : ''}
+                            {c.semester?.name ? ` · ${c.semester.name}` : ''}
+                            {c.section ? ` · ${c.section}` : ''}
+                          </p>
                           <p className="text-sm text-muted-foreground">{c.subject?.name || 'Subject pending'}</p>
                         </div>
-                        <Badge variant="secondary">{c.status}</Badge>
+                        {c.status === 'PENDING' ? (
+                          <Badge className="border-transparent bg-amber-500/15 text-amber-600 dark:text-amber-400">Pending approval</Badge>
+                        ) : c.expired ? (
+                          <Badge className="border-transparent bg-red-500/15 text-red-600 dark:text-red-400">Expired</Badge>
+                        ) : (
+                          <Badge variant="secondary">Active</Badge>
+                        )}
                       </div>
+                      {c.status === 'PENDING' && (
+                        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                          Your teacher has not approved this request yet. You will see attendance here once approved.
+                        </p>
+                      )}
                       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1"><Users className="size-3.5" />{c.teacher?.fullName || 'Teacher pending'}</span>
                         <span className="inline-flex items-center gap-1"><KeyRound className="size-3.5" />{c.joinCode}</span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1"><CalendarDays className="size-3.5" />Duration: {c.durationYears ? `${c.durationYears} Year${c.durationYears > 1 ? 's' : ''}` : '—'}</span>
+                        {c.expiresAt && (
+                          <span className="inline-flex items-center gap-1"><CalendarDays className="size-3.5" />Ends: {new Date(c.expiresAt).toLocaleDateString()}</span>
+                        )}
                       </div>
                       {c.schedules && c.schedules.length > 0 && (
                         <div className="mt-3 border-t pt-3 text-xs text-muted-foreground">
@@ -438,7 +470,7 @@ export function StudentDashboard() {
                         </div>
                       )}
                       <Button variant="outline" size="sm" className="mt-3" onClick={() => handleLeaveClassroom(c)}>
-                        Leave class
+                        {c.status === 'PENDING' ? 'Withdraw request' : 'Leave class'}
                       </Button>
                     </div>
                   ))}

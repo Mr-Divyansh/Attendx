@@ -24,7 +24,7 @@ export async function GET() {
 
     const student = await db.student.findUnique({
       where: { id: studentId },
-      select: { sectionId: true, semesterId: true, classroomMemberships: { select: { classroom: { select: { subjectId: true } } } } },
+      select: { sectionId: true, semesterId: true, classroomMemberships: { where: { status: 'ACTIVE' }, select: { classroom: { select: { subjectId: true } } } } },
     })
     if (!student) return errorResponse('Student not found', 404)
 
