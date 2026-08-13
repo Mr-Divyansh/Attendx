@@ -35,6 +35,7 @@ import {
 const roleCards: {
   role: Role
   title: string
+  tag: string
   desc: string
   icon: React.ElementType
   cta: string
@@ -43,6 +44,7 @@ const roleCards: {
   {
     role: 'STUDENT',
     title: 'Student',
+    tag: 'For students',
     desc: 'Manage your classes, attendance, subjects and academic progress.',
     icon: GraduationCap,
     cta: 'Continue as Student',
@@ -51,6 +53,7 @@ const roleCards: {
   {
     role: 'TEACHER',
     title: 'Teacher',
+    tag: 'For educators',
     desc: 'Manage classes, students, subjects and attendance with ease.',
     icon: Users,
     cta: 'Continue as Teacher',
@@ -59,6 +62,7 @@ const roleCards: {
   {
     role: 'PERSONAL',
     title: 'Personal Tracker',
+    tag: 'Solo, no classroom',
     desc: 'Track your personal attendance, timetable and progress solo.',
     icon: UserRoundCheck,
     cta: 'Open Personal Tracker',
@@ -254,17 +258,40 @@ export function Landing() {
               Open the Personal Tracker
               <ArrowRight className="size-3.5" />
             </button>
+
+            {/* Trust strip — honest, feature-based reassurance */}
+            <dl className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-4 border-t pt-6">
+              {[
+                { icon: ShieldCheck, label: 'Secure by design' },
+                { icon: Clock, label: 'Real-time marking' },
+                { icon: UserRoundCheck, label: 'Private by default' },
+              ].map((t) => (
+                <div key={t.label} className="flex items-center gap-2">
+                  <t.icon className="size-4 text-primary" />
+                  <dt className="text-sm font-medium text-muted-foreground">{t.label}</dt>
+                </div>
+              ))}
+            </dl>
           </div>
 
           {/* Product preview — a realistic attendance panel (load-bearing) */}
-          <HeroPreview />
+          <div className="relative">
+            <div
+              className="pointer-events-none absolute -inset-4 -z-10 rounded-[2rem] bg-primary/10 blur-2xl"
+              aria-hidden
+            />
+            <HeroPreview />
+          </div>
         </div>
       </section>
 
       {/* ── Role entry — three equally prominent paths ─────────────── */}
       <section className="mx-auto w-full max-w-6xl px-4 py-16 md:py-20">
         <div className="mx-auto mb-10 max-w-2xl text-center">
-          <h2 className="text-2xl font-bold tracking-tight text-balance md:text-3xl">
+          <span className="text-xs font-semibold uppercase tracking-widest text-primary">
+            Three roles, one platform
+          </span>
+          <h2 className="mt-3 text-2xl font-bold tracking-tight text-balance md:text-3xl">
             Choose how you want to use AttendX
           </h2>
           <p className="mt-3 text-muted-foreground text-pretty">
@@ -284,10 +311,19 @@ export function Landing() {
                   openLogin(c.role)
                 }
               }}
-              className="group flex cursor-pointer flex-col rounded-xl border bg-card p-6 lift hover:border-primary/40 hover:shadow-elevate focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border bg-card p-6 lift hover:border-primary/40 hover:shadow-elevate focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <c.icon className="size-5" />
+              <span
+                className="absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-primary transition-transform duration-300 group-hover:scale-x-100"
+                aria-hidden
+              />
+              <div className="flex items-center justify-between">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-inset ring-primary/15">
+                  <c.icon className="size-5" />
+                </div>
+                <span className="rounded-full border bg-muted/50 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                  {c.tag}
+                </span>
               </div>
               <h3 className="mt-4 text-lg font-semibold">{c.title}</h3>
               <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{c.desc}</p>
@@ -312,7 +348,10 @@ export function Landing() {
       <section className="border-t bg-muted/30">
         <div className="mx-auto w-full max-w-6xl px-4 py-16 md:py-20">
           <div className="mx-auto mb-12 max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-balance md:text-4xl">
+            <span className="text-xs font-semibold uppercase tracking-widest text-primary">
+              The platform
+            </span>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-balance md:text-4xl">
               Everything you need to track attendance
             </h2>
             <p className="mt-3 text-muted-foreground text-pretty">
@@ -321,8 +360,8 @@ export function Landing() {
           </div>
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
             {features.map((f) => (
-              <div key={f.title} className="rounded-xl border bg-card p-6 lift hover:border-primary/30 hover:shadow-elevate">
-                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <div key={f.title} className="group rounded-xl border bg-card p-6 lift hover:border-primary/30 hover:shadow-elevate">
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-inset ring-primary/15 transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                   <f.icon className="size-5" />
                 </div>
                 <h3 className="mb-1.5 font-semibold">{f.title}</h3>
