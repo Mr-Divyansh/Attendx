@@ -291,7 +291,13 @@ export function TeacherDashboard() {
   useEffect(() => {
     setLoadingSem(true)
     apiFetch<Semester[]>('/api/teacher/semesters')
-      .then(setSemesters)
+      .then((items) => {
+        setSemesters(items)
+        if (items.length === 1) {
+          setSemesterId(items[0].id)
+          setStep(2)
+        }
+      })
       .catch(() => toast.error('Failed to load semesters'))
       .finally(() => setLoadingSem(false))
   }, [])
@@ -306,7 +312,13 @@ export function TeacherDashboard() {
     if (!semesterId) return
     setLoadingSec(true)
     apiFetch<Section[]>(`/api/teacher/sections?semesterId=${semesterId}`)
-      .then(setSections)
+      .then((items) => {
+        setSections(items)
+        if (items.length === 1) {
+          setSectionId(items[0].id)
+          setStep(3)
+        }
+      })
       .catch(() => toast.error('Failed to load sections'))
       .finally(() => setLoadingSec(false))
   }, [semesterId])
@@ -320,7 +332,13 @@ export function TeacherDashboard() {
     if (!sectionId) return
     setLoadingSubj(true)
     apiFetch<Subject[]>(`/api/teacher/subjects?sectionId=${sectionId}`)
-      .then(setSubjects)
+      .then((items) => {
+        setSubjects(items)
+        if (items.length === 1) {
+          setSubjectId(items[0].id)
+          setStep(4)
+        }
+      })
       .catch(() => toast.error('Failed to load subjects'))
       .finally(() => setLoadingSubj(false))
   }, [sectionId])
@@ -349,7 +367,7 @@ export function TeacherDashboard() {
       periods: PeriodInfo[]
       editable: boolean
       sectionId: string | null
-    }>(`/api/teacher/attendance?subjectId=${subjectId}&date=${date}`)
+    }>(`/api/teacher/attendance?subjectId=${subjectId}&sectionId=${sectionId}&date=${date}`)
       .then((data) => {
         setRecords(data.records)
         setPeriods(data.periods)
@@ -357,7 +375,7 @@ export function TeacherDashboard() {
       })
       .catch(() => toast.error('Failed to load attendance'))
       .finally(() => setLoadingAtt(false))
-  }, [subjectId, date])
+  }, [subjectId, sectionId, date])
 
   // ── effective period: explicit selection, else default to first available ──
   const effectivePeriod = useMemo(
@@ -464,7 +482,7 @@ export function TeacherDashboard() {
 
   // ── save ──
   const handleSave = async () => {
-    if (!subjectId || !date || effectivePeriod == null) return
+    if (!subjectId || !sectionId || !date || effectivePeriod == null) return
     if (effectiveReadOnly) {
       toast.error('Attendance for this date is read-only')
       return
@@ -485,6 +503,7 @@ export function TeacherDashboard() {
           method: 'POST',
           body: JSON.stringify({
             subjectId,
+            sectionId,
             date,
             period: effectivePeriod,
             entries,
@@ -500,7 +519,7 @@ export function TeacherDashboard() {
         periods: PeriodInfo[]
         editable: boolean
         sectionId: string | null
-      }>(`/api/teacher/attendance?subjectId=${subjectId}&date=${date}`)
+      }>(`/api/teacher/attendance?subjectId=${subjectId}&sectionId=${sectionId}&date=${date}`)
       setRecords(data.records)
       setEditable(data.editable)
     } catch (e) {
@@ -899,6 +918,7 @@ function MarkAttendanceFlow(props: FlowProps) {
               placeholder="Choose a section…"
               loading={loadingSec}
               disabled={!semesterId}
+              emptyMessage="No sections are assigned to this semester."
               options={sections.map((s) => ({ value: s.id, label: s.name }))}
               onValueChange={onSectionChange}
             />
@@ -912,6 +932,7 @@ function MarkAttendanceFlow(props: FlowProps) {
               placeholder="Choose a subject…"
               loading={loadingSubj}
               disabled={!sectionId}
+              emptyMessage="No subjects are assigned to this section."
               options={subjects.map((s) => ({
                 value: s.id,
                 label: `${s.code} — ${s.name}`,

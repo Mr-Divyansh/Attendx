@@ -24,7 +24,7 @@ export async function GET() {
       where: { teacherId, day: dayName },
       include: {
         subject: { select: { id: true, code: true, name: true } },
-        section: { select: { id: true, name: true, semesterId: true } },
+        section: { select: { id: true, name: true, semesterId: true, students: { select: { id: true } } } },
       },
       orderBy: { period: 'asc' },
     })
@@ -33,7 +33,12 @@ export async function GET() {
       slots.map(async (s) => {
         const marked = s.subjectId
           ? (await db.attendance.count({
-              where: { subjectId: s.subjectId, date: dateStr, period: s.period },
+              where: {
+                subjectId: s.subjectId,
+                date: dateStr,
+                period: s.period,
+                studentId: { in: s.section?.students.map((student) => student.id) ?? [] },
+              },
             })) > 0
           : false
         return {

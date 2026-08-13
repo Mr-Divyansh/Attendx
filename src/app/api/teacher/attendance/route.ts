@@ -25,7 +25,7 @@ function parseLocalDate(s: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d
 }
 
-// GET /api/teacher/attendance?subjectId=&date=
+// GET /api/teacher/attendance?subjectId=&sectionId=&date=
 // Returns { records: [{studentId, status, period}], periods: [{period, startTime, endTime}], editable, sectionId }
 // - periods: timetable slots for this subject + the section it belongs to + the weekday of `date`.
 // - records: existing attendance rows for this subject + date (all periods).
@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
     const teacherId = session.teacherId!
     const sp = req.nextUrl.searchParams
     const subjectId = sp.get('subjectId')
+    const requestedSectionId = sp.get('sectionId')
     const date = sp.get('date')
     if (!subjectId || !date) {
       return errorResponse('subjectId and date are required', 400)
@@ -47,8 +48,27 @@ export async function GET(req: NextRequest) {
       where: { id: subjectId },
       select: { id: true, sectionId: true, teacherId: true },
     })
-    if (!subject || subject.teacherId !== teacherId) {
+    if (!subject) {
       return errorResponse('Subject not found for this teacher', 404)
+    }
+
+    const subjectAssignment = subject.teacherId === teacherId
+    const timetableAssignment = await db.timetable.findFirst({
+      where: {
+        teacherId,
+        subjectId,
+        ...(requestedSectionId ? { sectionId: requestedSectionId } : {}),
+      },
+      select: { sectionId: true },
+    })
+    const sectionAssignment = subject.sectionId === requestedSectionId
+    if ((!subjectAssignment && !timetableAssignment) || (requestedSectionId && !sectionAssignment && !timetableAssignment)) {
+      return errorResponse('Subject not found for this teacher', 404)
+    }
+
+    const sectionId = requestedSectionId ?? subject.sectionId ?? timetableAssignment?.sectionId
+    if (!sectionId) {
+      return errorResponse('This subject is not assigned to a section', 400)
     }
 
     const dayName = DAY_NAMES[submitted.getDay()]
@@ -56,15 +76,19 @@ export async function GET(req: NextRequest) {
       where: {
         teacherId,
         subjectId,
-        sectionId: subject.sectionId ?? undefined,
+        sectionId,
         day: dayName,
       },
       select: { period: true, startTime: true, endTime: true },
       orderBy: { period: 'asc' },
     })
 
+    const sectionStudents = await db.student.findMany({
+      where: { sectionId },
+      select: { id: true },
+    })
     const records = await db.attendance.findMany({
-      where: { subjectId, date },
+      where: { subjectId, date, studentId: { in: sectionStudents.map((student) => student.id) } },
       select: { studentId: true, status: true, period: true },
     })
 
@@ -73,7 +97,7 @@ export async function GET(req: NextRequest) {
     minDate.setDate(minDate.getDate() - 6) // last 7 days inclusive
     const editable = submitted <= today && submitted >= minDate
 
-    return json({ records, periods, editable, sectionId: subject.sectionId })
+    return json({ records, periods, editable, sectionId })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
     return handleRouteError(e, 'teacher/attendance')
@@ -81,7 +105,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/teacher/attendance
-// body: { subjectId, date, period, entries: [{ studentId, status }] }
+// body: { subjectId, sectionId, date, period, entries: [{ studentId, status }] }
 // Upserts attendance for each entry (findExisting + update/create, because the
 // compound unique key includes nullable fields and cannot be used in whereUnique).
 // Sets markedById = session.teacherId. Enforces the 7-day edit window.
@@ -94,14 +118,15 @@ export async function POST(req: NextRequest) {
     const teacherId = session.teacherId!
     const body = await parseBody<{
       subjectId?: string
+      sectionId?: string
       date?: string
       period?: number
       entries?: { studentId: string; status: string }[]
     }>(req)
 
-    const { subjectId, date, period, entries } = body
-    if (!subjectId || !date || typeof period !== 'number' || !Array.isArray(entries)) {
-      return errorResponse('subjectId, date, period and entries[] are required', 400)
+    const { subjectId, sectionId: requestedSectionId, date, period, entries } = body
+    if (!subjectId || !requestedSectionId || !date || typeof period !== 'number' || !Array.isArray(entries)) {
+      return errorResponse('subjectId, sectionId, date, period and entries[] are required', 400)
     }
     const submitted = parseLocalDate(date)
     if (!submitted) return errorResponse('Invalid date', 400)
@@ -128,9 +153,14 @@ export async function POST(req: NextRequest) {
       where: { id: subjectId },
       select: { teacherId: true, sectionId: true },
     })
-    if (!subject || subject.teacherId !== teacherId) {
+    if (!subject) {
       return errorResponse('Subject not found for this teacher', 404)
     }
+
+    const hasAccess = (subject.teacherId === teacherId && subject.sectionId === requestedSectionId) || (await db.timetable.count({
+      where: { teacherId, subjectId, sectionId: requestedSectionId },
+    })) > 0
+    if (!hasAccess) return errorResponse('Subject not found for this teacher', 404)
 
     // Verify the period exists in this teacher's timetable for that weekday
     const dayName = DAY_NAMES[submitted.getDay()]
@@ -138,7 +168,7 @@ export async function POST(req: NextRequest) {
       where: {
         teacherId,
         subjectId,
-        sectionId: subject.sectionId ?? undefined,
+        sectionId: requestedSectionId,
         day: dayName,
         period,
       },
@@ -148,10 +178,10 @@ export async function POST(req: NextRequest) {
       return errorResponse('No timetable slot for this subject/period/day', 400)
     }
 
-    // Only allow students from the subject's section
+    // Only allow students from the selected, teacher-authorized section.
     const studentIds = entries.map((e) => e.studentId)
     const validStudents = await db.student.findMany({
-      where: { id: { in: studentIds }, sectionId: subject.sectionId ?? undefined },
+      where: { id: { in: studentIds }, sectionId: requestedSectionId },
       select: { id: true },
     })
     const validStudentIds = new Set(validStudents.map((s) => s.id))
