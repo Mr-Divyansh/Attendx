@@ -16,9 +16,11 @@ import {
   Target,
   Layers,
   ArrowRight,
+  UserRoundCheck,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import Image from 'next/image'
+import Link from 'next/link'
 
 const roleCards: {
   role: Role
@@ -26,6 +28,7 @@ const roleCards: {
   desc: string
   icon: React.ElementType
   cta: string
+  badge?: string
 }[] = [
   {
     role: 'STUDENT',
@@ -40,6 +43,14 @@ const roleCards: {
     desc: 'Create classrooms, mark attendance and support your students.',
     icon: Users,
     cta: 'Teacher sign in',
+  },
+  {
+    role: 'PERSONAL',
+    title: 'Personal Attendance',
+    desc: 'Track your own attendance privately — no college or classroom required.',
+    icon: UserRoundCheck,
+    cta: 'Open Personal Tracker',
+    badge: 'Works solo',
   },
 ]
 
@@ -124,15 +135,16 @@ export function Landing() {
           <div>
           <div className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground mb-6">
             <CheckCircle2 className="size-3.5 text-primary" />
-            Student attendance, managed properly
+            For classrooms — and for tracking on your own
           </div>
           <h1 className="max-w-3xl text-4xl font-semibold tracking-tight md:text-5xl md:leading-[1.08]">
             Clear attendance, better decisions.
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
             AttendX is a clean, secure platform where teachers mark attendance and
-            students track their progress — with clear analytics and classroom
-            management in one place.
+            students track their progress in a classroom — or, if you&rsquo;d
+            rather go it alone, the Personal Tracker lets you log your own
+            attendance without joining any college or classroom.
           </p>
           <div className="mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
             <Button
@@ -178,27 +190,49 @@ export function Landing() {
         </div>
       </section>
 
-      {/* Role entry */}
+      {/* Role entry — three balanced, equally prominent paths */}
       <section className="mx-auto w-full max-w-6xl px-4 py-16 md:py-20">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-3xl mx-auto">
+        <div className="text-center mb-10">
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+            Choose how you want to use AttendX
+          </h2>
+          <p className="mt-2 text-muted-foreground max-w-xl mx-auto">
+            Part of a college workflow, or tracking on your own — pick the path that fits.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto">
           {roleCards.map((c) => (
             <Card
               key={c.role}
-              className="group p-6 transition-colors hover:border-primary/40 hover:bg-accent/40 cursor-pointer"
+              className="group relative flex flex-col p-6 transition-colors hover:border-primary/40 hover:bg-accent/40 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              role="button"
+              tabIndex={0}
               onClick={() => openLogin(c.role)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  openLogin(c.role)
+                }
+              }}
             >
               <div className="flex items-start justify-between">
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <c.icon className="size-5" />
                 </div>
-                <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                {c.badge ? (
+                  <span className="rounded-full border bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground">
+                    {c.badge}
+                  </span>
+                ) : (
+                  <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                )}
               </div>
               <h3 className="mt-4 text-lg font-semibold">{c.title}</h3>
-              <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+              <p className="mt-1 text-sm text-muted-foreground leading-relaxed flex-1">
                 {c.desc}
               </p>
-              <p className="mt-4 text-sm font-semibold text-primary">
-                {c.cta} →
+              <p className="mt-4 text-sm font-semibold text-primary inline-flex items-center gap-1">
+                {c.cta} <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
               </p>
             </Card>
           ))}
@@ -239,7 +273,7 @@ export function Landing() {
             Ready to get started?
           </h2>
           <p className="mt-2 text-muted-foreground">
-            Sign in as a student or teacher to begin.
+            Sign in as a student or teacher, or start your own personal tracker.
           </p>
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Button onClick={() => openLogin('STUDENT')} className="min-w-[180px]">
@@ -247,6 +281,9 @@ export function Landing() {
             </Button>
             <Button variant="outline" onClick={() => openLogin('TEACHER')} className="min-w-[180px]">
               Teacher sign in
+            </Button>
+            <Button variant="outline" onClick={() => openLogin('PERSONAL')} className="min-w-[180px]">
+              Personal Tracker
             </Button>
           </div>
         </Card>
@@ -265,15 +302,15 @@ export function Landing() {
             </span>
           </div>
           <nav className="flex items-center gap-5 text-sm text-muted-foreground">
-            <span className="cursor-pointer hover:text-foreground transition-colors">
-              About
-            </span>
-            <span className="cursor-pointer hover:text-foreground transition-colors">
-              Contact
-            </span>
-            <span className="cursor-pointer hover:text-foreground transition-colors">
+            <Link href="/" className="hover:text-foreground transition-colors">
+              Home
+            </Link>
+            <Link href="/terms" className="hover:text-foreground transition-colors">
+              Terms &amp; Conditions
+            </Link>
+            <Link href="/privacy" className="hover:text-foreground transition-colors">
               Privacy Policy
-            </span>
+            </Link>
           </nav>
         </div>
         <div className="border-t bg-background/40">
