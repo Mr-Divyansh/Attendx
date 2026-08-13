@@ -327,7 +327,7 @@ export function handleRouteError(e: unknown, context: string): Response {
     return errorResponse('Database connection failed. Please try again in a few minutes.', 503)
   }
   // Prisma P2021 — table or column does not exist (schema not pushed)
-  if (code === 'P2021' || message.includes('P2021')) {
+  if (code === 'P2021' || code === 'P2022' || message.includes('P2021') || message.includes('P2022')) {
     return errorResponse(
       'Database schema is out of date. The administrator needs to run `npx prisma db push` and redeploy.',
       503

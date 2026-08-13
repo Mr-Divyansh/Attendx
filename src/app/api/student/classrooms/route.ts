@@ -1,4 +1,4 @@
-import { requireRole, json, errorResponse, AuthError } from '@/lib/auth'
+import { requireRole, json, errorResponse, AuthError, handleRouteError } from '@/lib/auth'
 import { db } from '@/lib/db'
 
 export async function GET() {
@@ -23,6 +23,6 @@ export async function GET() {
     return json({ classrooms: memberships.map((m) => ({ ...m.classroom, status: m.status })) })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Unable to load classrooms', 500)
+    return handleRouteError(e, 'student/classrooms')
   }
 }

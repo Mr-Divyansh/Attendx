@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError, validateCsrfToken } from '@/lib/auth'
+import { requireRole, parseBody, json, errorResponse, AuthError, validateCsrfToken, handleRouteError } from '@/lib/auth'
 import { makeClassroomPublicId } from '@/lib/oauth'
 
 function makeJoinCode() {
@@ -151,6 +151,6 @@ export async function POST(req: NextRequest) {
     return json({ classroom })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Unable to create classroom', 500)
+    return handleRouteError(e, 'classrooms')
   }
 }
