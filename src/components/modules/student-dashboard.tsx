@@ -10,6 +10,7 @@ import {
   type NavItem,
 } from '@/components/dashboard-shell'
 import { apiFetch } from '@/lib/api'
+import { toast } from 'sonner'
 import { useAuth } from '@/stores/auth-store'
 import {
   Card,
@@ -250,6 +251,17 @@ export function StudentDashboard() {
     }
   }
 
+  const handleLeaveClassroom = async (classroom: ClassroomRow) => {
+    if (!confirm(`Leave ${classroom.name}? You can join again later with its join code.`)) return
+    try {
+      await apiFetch(`/api/student/classrooms/${classroom.id}`, { method: 'DELETE' })
+      setClassrooms((current) => current.filter((item) => item.id !== classroom.id))
+      toast.success(`Left ${classroom.name}`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Unable to leave classroom')
+    }
+  }
+
   const scrollToId = (id: string) => {
     setActive(id)
     if (typeof document !== 'undefined') {
@@ -425,6 +437,9 @@ export function StudentDashboard() {
                           {c.schedules.map((slot) => `${slot.day} ${slot.startTime}–${slot.endTime}`).join(' · ')}
                         </div>
                       )}
+                      <Button variant="outline" size="sm" className="mt-3" onClick={() => handleLeaveClassroom(c)}>
+                        Leave class
+                      </Button>
                     </div>
                   ))}
                 </div>

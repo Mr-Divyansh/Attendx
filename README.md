@@ -1,70 +1,110 @@
 # AttendX
 
-Smart Attendance Management — dual-mode (College Management System + independent
-Personal Attendance Tracker). Next.js 16 + TypeScript + Prisma (Postgres) + Tailwind +
-shadcn/ui.
+AttendX is an attendance-management application for schools, colleges, and universities. It includes dedicated Teacher, Student, Admin, and Personal Tracker experiences.
 
-## What was fixed (Aug 2026 pass)
+Built with Next.js 16, TypeScript, Prisma, PostgreSQL, Tailwind CSS, and shadcn/ui.
 
-- **CSRF tokens were issued but never checked server-side.** Every mutation route
-  (admin/personal/teacher, 22 files) now validates the `x-csrf-token` header against
-  the session's CSRF cookie before making any change.
-- **SQLite → Postgres.** SQLite writes to a local file, which does not persist across
-  Netlify's serverless function invocations — this was almost certainly why the live
-  site behaved inconsistently / lost data. Swapped `prisma/schema.prisma` to
-  `postgresql`.
-- **Removed `output: "standalone"`** from `next.config.ts` — that config (plus the old
-  `Caddyfile`) was for a self-hosted Node/Bun server, not Netlify. Added `netlify.toml`
-  + `@netlify/plugin-nextjs` so Netlify builds this correctly as a Next.js app.
-- **Session secret** (`ATTENDX_SECRET`) had an insecure hardcoded fallback. The app now
-  refuses to start in production if it isn't set, instead of silently signing cookies
-  with a secret anyone can read in this source file.
-- **Cookies now set `secure: true` in production.**
-- **Basic rate limiting** added to login/register endpoints (were previously
-  unprotected against password brute-forcing).
-- **Demo credentials removed from the production build** of the login modal — showing
-  `admin@attendx.edu` / `admin123` on a public site is a real risk if you've run the
-  seed script against your real database. **Change or remove the seeded admin account
-  before letting real users onto a production deployment.**
-- Fixed 2 accessibility lint errors (`<a>` tags with no `href` in the footer).
-- Removed an unused dependency (`z-ai-web-dev-sdk`) and `bun-types`.
-- Added a `.gitignore` (there wasn't one — risk of accidentally committing
-  `node_modules`, `.env`, build output).
+## Features
 
-## Deploying to Vercel
+### Teacher panel
 
-1. **Get a Postgres database.** Easiest: in your Netlify site, go to
-   **Extensions -> Database** and provision one (powered by Neon) — it sets
-   `DATABASE_URL` for you automatically. Or get a free one manually from
-   [neon.tech](https://neon.tech) or [supabase.com](https://supabase.com).
-2. In **Site settings -> Environment variables**, set:
-   - `DATABASE_URL` — your Postgres connection string (skip if the Netlify DB
-     extension already set it)
-   - `ATTENDX_SECRET` — a long random string, e.g. output of `openssl rand -hex 32`
-   - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` — credentials for a Google Cloud Web OAuth client
-   - `GOOGLE_CALLBACK_URL` — `https://<your-site>.netlify.app/api/auth/google/callback`
-     (recommended in production so the configured redirect is unambiguous)
-3. Push this code to your GitHub repo (`git push`), connect the repo in Netlify — it
-   will auto-detect `netlify.toml` and build with `@netlify/plugin-nextjs`.
-4. After the first deploy, run the schema against your new database once (from your
-   own machine, with `DATABASE_URL` pointed at production):
-   ```
-   npx prisma db push
-   ```
-5. Optional: seed demo data with `npx prisma db seed` — but if you do this on a real
-   production database, **change the seeded admin password immediately** (or delete
-   that account) since it's a well-known default.
+- Create a school or college/university classroom.
+- Build a teacher-owned academic structure: semester/class, section, and subject.
+- Share a classroom join code with students.
+- View actual active classroom members and remove a student from one classroom without deleting their account.
+- Create timetable entries with day, start time, and end time. There is no required Period field.
+- Mark attendance using date, start time, end time, and Present/Absent controls.
+- Load and correct a previously saved attendance session.
 
-## Local development
+### Student panel
 
-```bash
-cp .env.example .env   # fill in DATABASE_URL (any Postgres, even a free Neon branch) and ATTENDX_SECRET
+- Join multiple classrooms without creating duplicate accounts or memberships.
+- See joined classrooms, the responsible teacher, and only the schedules belonging to those classrooms.
+- View teacher-recorded attendance and attendance summaries.
+- Attendance records are read-only for students.
+
+### Admin and personal tracker
+
+- Admin management for users and the global academic catalogue.
+- Independent personal attendance tracking, isolated from school/college data.
+- Email/password authentication, Google OAuth, session cookies, CSRF protection, and role checks.
+
+## Run locally
+
+### Prerequisites
+
+- Node.js 20 or newer
+- A PostgreSQL database (Neon works well)
+
+### Setup
+
+```powershell
 npm install
+```
+
+Create a `.env` file:
+
+```env
+DATABASE_URL="postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require"
+ATTENDX_SECRET="use-a-long-random-secret-in-production"
+```
+
+Apply the Prisma schema and start the app:
+
+```powershell
+npx prisma generate
 npx prisma db push
 npm run dev
 ```
 
-## Stack
+Open [http://localhost:3000](http://localhost:3000).
 
-Next.js 16 (App Router) · TypeScript · Prisma + Postgres · Tailwind CSS · shadcn/ui ·
-Recharts · Zustand
+## Database deployment — required
+
+Deploying application code does **not** update the database schema. Whenever `prisma/schema.prisma` changes, run this against the same `DATABASE_URL` configured in Vercel:
+
+```powershell
+npx prisma db push
+```
+
+Then redeploy the app. If this step is skipped, APIs can return errors such as “Database schema is out of date” or HTTP 500 responses while querying new fields.
+
+## Teacher workflow
+
+1. Sign in as a teacher.
+2. Open **Academic Setup**.
+3. Create a semester/class, such as `1st Semester` or `Class 10`.
+4. Select it, then create a section such as `A`.
+5. Select the section and create the actual subject, such as `Programming` or `Mathematics`.
+6. Open **Classrooms** and create a classroom. Choose School or College/University mode as appropriate.
+7. Share the generated join code with students.
+8. Open the classroom to add timetable entries and manage members.
+9. Use **Mark Attendance** to load the student list, set any valid date/time range, and save Present/Absent status.
+
+## Admin access
+
+Open `/admin-panel` and sign in with an existing admin account.
+
+For a fresh database, optional demo data can be created with:
+
+```powershell
+npx prisma db seed
+```
+
+The seed creates `admin@attendx.edu` / `admin123`. This is for local development only—change or remove that account immediately in any shared or production database.
+
+## Validation commands
+
+```powershell
+npx prisma generate
+npx prisma validate
+npx tsc --noEmit
+npm run build
+```
+
+## Security notes
+
+- Set a unique, strong `ATTENDX_SECRET` in Vercel for production.
+- Never commit `.env` files or database credentials.
+- CSRF tokens are required for mutations.
+- Teacher APIs verify classroom ownership; student APIs expose only memberships belonging to the signed-in student.
