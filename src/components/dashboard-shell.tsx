@@ -90,8 +90,8 @@ export function DashboardShell({
                 onClick={() => onNavigate(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   active === item.id
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-sidebar-foreground hover:bg-sidebar-accent'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                 }`}
               >
                 <item.icon className="size-4" />
@@ -230,14 +230,14 @@ export function StatCard({
     'chart-5': 'bg-chart-5/10 text-chart-5',
   }
   return (
-    <div className="rounded-xl border bg-card p-4 md:p-5">
+    <div className="group rounded-xl border bg-card p-4 md:p-5 lift hover:border-primary/30 hover:shadow-elevate">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">{label}</span>
+        <span className="text-sm font-medium text-muted-foreground">{label}</span>
         <div className={`size-9 rounded-lg grid place-items-center ${toneClass[tone]}`}>
           <Icon className="size-5" />
         </div>
       </div>
-      <div className="mt-2 text-2xl md:text-3xl font-bold tracking-tight">
+      <div className="mt-3 text-2xl md:text-3xl font-bold tracking-tight tnum">
         {value}
       </div>
     </div>

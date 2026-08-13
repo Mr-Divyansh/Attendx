@@ -79,7 +79,7 @@
 :root {
   /* Corner rounding used by every card/button/input (rem). Lower = sharper,
      more "serious SaaS"; higher = softer/friendlier. */
-  --radius: 0.5rem;
+  --radius: 0.75rem;
 
   /* ── 1. PRIMARY / BRAND COLOR — indigo/blue accent ──────────────────── */
   --primary: oklch(0.52 0.17 262);
@@ -232,8 +232,8 @@
   /* Landing hero: soft radial glow behind the headline. */
   .hero-glow {
     background: radial-gradient(
-      60% 50% at 50% 0%,
-      oklch(var(--primary) / 0.14),
+      60% 60% at 50% 0%,
+      color-mix(in oklch, var(--primary) 16%, transparent),
       transparent 70%
     );
   }
@@ -243,12 +243,12 @@
     background-image:
       linear-gradient(
         to right,
-        oklch(var(--foreground) / 0.05) 1px,
+        color-mix(in oklch, var(--foreground) 6%, transparent) 1px,
         transparent 1px
       ),
       linear-gradient(
         to bottom,
-        oklch(var(--foreground) / 0.05) 1px,
+        color-mix(in oklch, var(--foreground) 6%, transparent) 1px,
         transparent 1px
       );
     background-size: 36px 36px;
@@ -261,5 +261,47 @@
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
+  }
+
+  /* Premium soft elevation — a layered, low-contrast shadow that reads as
+     "quality product" rather than a hard drop shadow. */
+  .shadow-elevate {
+    box-shadow:
+      0 1px 2px oklch(0.2 0.02 262 / 0.04),
+      0 4px 12px oklch(0.2 0.02 262 / 0.05),
+      0 12px 32px oklch(0.2 0.02 262 / 0.05);
+  }
+  .dark .shadow-elevate {
+    box-shadow:
+      0 1px 2px oklch(0 0 0 / 0.3),
+      0 8px 24px oklch(0 0 0 / 0.35);
+  }
+
+  /* Subtle interactive lift for cards/tiles. */
+  .lift {
+    transition:
+      transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      border-color 0.2s ease;
+  }
+  .lift:hover {
+    transform: translateY(-2px);
+  }
+
+  /* Faint dotted texture for hero/section backdrops — quieter than a grid. */
+  .dot-grid {
+    background-image: radial-gradient(
+      color-mix(in oklch, var(--foreground) 7%, transparent) 1px,
+      transparent 1px
+    );
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(80% 70% at 50% 20%, black, transparent);
+    mask-image: radial-gradient(80% 70% at 50% 20%, black, transparent);
+  }
+
+  /* Tabular figures for stats/percentages so numbers don't jitter. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
   }
 }
