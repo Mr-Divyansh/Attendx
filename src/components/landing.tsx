@@ -21,6 +21,7 @@ import {
 import { useTheme } from 'next-themes'
 import Image from 'next/image'
 import Link from 'next/link'
+import { SiteFooter } from '@/components/site-footer'
 
 const roleCards: {
   role: Role
@@ -289,8 +290,9 @@ export function Landing() {
         </Card>
       </section>
 
-      {/* Footer */}
-      <footer className="mt-auto border-t bg-card/50">
+      <SiteFooter />
+      {/* Legacy footer kept out of the render tree while landing-page styles migrate. */}
+      {/* <footer className="mt-auto border-t bg-card/50">
         <div className="mx-auto w-full max-w-6xl px-4 py-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
@@ -319,7 +321,7 @@ export function Landing() {
             you can trust.
           </p>
         </div>
-      </footer>
+      </footer> */}
     </div>
   )
 }
