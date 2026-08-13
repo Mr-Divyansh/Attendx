@@ -22,7 +22,7 @@ export async function GET() {
 
     const slots = await db.timetable.findMany({
       where: { teacherId, day: dayName },
-      select: { id: true, subjectId: true, period: true },
+      select: { id: true, subjectId: true, sectionId: true, period: true },
     })
 
     let completed = 0
@@ -30,11 +30,21 @@ export async function GET() {
       const counts = await Promise.all(
         slots
           .filter((s) => s.subjectId)
-          .map((s) =>
-            db.attendance.count({
-              where: { subjectId: s.subjectId!, date: dateStr, period: s.period },
+          .map(async (s) => {
+            if (!s.sectionId) return 0
+            const students = await db.student.findMany({
+              where: { sectionId: s.sectionId },
+              select: { id: true },
             })
-          )
+            return db.attendance.count({
+              where: {
+                subjectId: s.subjectId!,
+                date: dateStr,
+                period: s.period,
+                studentId: { in: students.map((student) => student.id) },
+              },
+            })
+          })
       )
       completed = counts.filter((c) => c > 0).length
     }

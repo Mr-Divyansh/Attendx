@@ -28,19 +28,23 @@ export async function POST(req: NextRequest) {
 
     if (!classroom) return errorResponse('Classroom not found', 404)
 
-    const existing = await db.classroomMember.findFirst({
-      where: { classroomId: classroom.id, studentId: session.studentId },
-    })
-
-    if (existing) return errorResponse('You already joined this classroom', 409)
-
-    await db.classroomMember.create({
-      data: {
-        classroomId: classroom.id,
-        studentId: session.studentId,
-        status: 'PENDING',
-      },
-    })
+    try {
+      await db.classroomMember.create({
+        data: {
+          classroomId: classroom.id,
+          studentId: session.studentId,
+          status: 'PENDING',
+        },
+      })
+    } catch (error) {
+      // The database's unique constraint is the final authority here. This
+      // avoids a concurrent request from a second device creating a 500 or a
+      // duplicate membership after both requests pass a pre-check.
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
+        return errorResponse('You already joined this classroom', 409)
+      }
+      throw error
+    }
 
     return json({ ok: true, classroom })
   } catch (e) {

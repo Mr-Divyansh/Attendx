@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
     form.set('email', data.data.email)
     form.set('message', data.data.message)
     const response = await fetch('https://api.web3forms.com/submit', { method: 'POST', body: form, cache: 'no-store' })
-    if (!response.ok) {
+    const result = await response.json().catch(() => null) as { success?: boolean } | null
+    if (!response.ok || result?.success !== true) {
       console.error('[contact] delivery failed', { status: response.status })
       return errorResponse('Unable to send your message. Please try again later.', 502)
     }
