@@ -27,18 +27,18 @@ datasource db {
 // ───────────────────────────────────────────────────────────
 
 model User {
-  id           String      @id @default(cuid())
-  email        String      @unique
+  id           String   @id @default(cuid())
+  email        String   @unique
   passwordHash String?
-  role         Role        @default(STUDENT)
-  disabled     Boolean     @default(false)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  role         Role     @default(STUDENT)
+  disabled     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  admin             Admin?
-  teacher           Teacher?
-  student           Student?
-  authAccounts      AuthAccount[]
+  admin                Admin?
+  teacher              Teacher?
+  student              Student?
+  authAccounts         AuthAccount[]
   collegeNotifications CollegeNotification[]
 }
 
@@ -69,22 +69,24 @@ model Admin {
 }
 
 model Teacher {
-  id              String     @id @default(cuid())
-  userId          String     @unique
-  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String      @id @default(cuid())
+  userId          String      @unique
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   fullName        String
   subjectTaught   String?
   institutionName String?
   departmentLabel String?
   deptId          String?
   department      Department? @relation(fields: [deptId], references: [id])
-  profileComplete Boolean    @default(false)
-  createdAt       DateTime   @default(now())
+  profileComplete Boolean     @default(false)
+  createdAt       DateTime    @default(now())
 
-  subjects  Subject[]
-  slots     Timetable[]
-  marked    Attendance[] @relation("MarkedBy")
+  subjects   Subject[]
+  slots      Timetable[]
+  marked     Attendance[] @relation("MarkedBy")
   classrooms Classroom[]
+  semesters  Semester[]   @relation("TeacherSemesters")
+  sections   Section[]    @relation("TeacherSections")
 }
 
 model Student {
@@ -98,7 +100,7 @@ model Student {
   sectionId       String?
   semester        Semester? @relation(fields: [semesterId], references: [id])
   section         Section?  @relation(fields: [sectionId], references: [id])
-  studentType     String?   // SCHOOL or COLLEGE
+  studentType     String? // SCHOOL or COLLEGE
   institutionName String?
   gradeLevel      String?
   schoolSection   String?
@@ -108,7 +110,7 @@ model Student {
   profileComplete Boolean   @default(false)
   createdAt       DateTime  @default(now())
 
-  attendance         Attendance[]
+  attendance           Attendance[]
   classroomMemberships ClassroomMember[]
 }
 
@@ -117,20 +119,22 @@ model Student {
 // ───────────────────────────────────────────────────────────
 
 model Department {
-  id        String    @id @default(cuid())
-  name      String    @unique
-  code      String    @unique
-  createdAt DateTime  @default(now())
+  id        String   @id @default(cuid())
+  name      String   @unique
+  code      String   @unique
+  createdAt DateTime @default(now())
 
   teachers Teacher[]
   subjects Subject[]
 }
 
 model Semester {
-  id        String    @id @default(cuid())
-  name      String    @unique // e.g. "Semester 1"
-  number    Int       @unique
-  createdAt DateTime  @default(now())
+  id        String   @id @default(cuid())
+  name      String // e.g. "Semester 1"
+  number    Int      @default(0)
+  teacherId String?
+  teacher   Teacher? @relation("TeacherSemesters", fields: [teacherId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 
   students Student[]
   subjects Subject[]
@@ -138,80 +142,89 @@ model Semester {
 }
 
 model Section {
-  id          String    @id @default(cuid())
-  name        String    @unique // e.g. "Section A"
-  semesterId  String?
-  semester    Semester? @relation(fields: [semesterId], references: [id])
-  createdAt   DateTime   @default(now())
+  id         String    @id @default(cuid())
+  name       String // e.g. "Section A"
+  semesterId String?
+  semester   Semester? @relation(fields: [semesterId], references: [id])
+  teacherId  String?
+  teacher    Teacher?  @relation("TeacherSections", fields: [teacherId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
 
-  students  Student[]
+  students   Student[]
   timetables Timetable[]
   subjects   Subject[]
 }
 
 model Subject {
-  id          String     @id @default(cuid())
-  code        String     @unique // e.g. "CS101"
-  name        String     // e.g. "Programming in C"
-  semesterId  String?
-  sectionId   String?
-  deptId      String?
-  teacherId   String?
-  semester    Semester?  @relation(fields: [semesterId], references: [id])
-  section     Section?   @relation(fields: [sectionId], references: [id])
-  department  Department? @relation(fields: [deptId], references: [id])
-  teacher     Teacher?   @relation(fields: [teacherId], references: [id])
-  createdAt   DateTime   @default(now())
+  id         String      @id @default(cuid())
+  code       String      @unique // e.g. "CS101"
+  name       String // e.g. "Programming in C"
+  semesterId String?
+  sectionId  String?
+  deptId     String?
+  teacherId  String?
+  semester   Semester?   @relation(fields: [semesterId], references: [id])
+  section    Section?    @relation(fields: [sectionId], references: [id])
+  department Department? @relation(fields: [deptId], references: [id])
+  teacher    Teacher?    @relation(fields: [teacherId], references: [id])
+  createdAt  DateTime    @default(now())
 
-  timetables  Timetable[]
-  attendance  Attendance[]
-  classrooms  Classroom[]
+  timetables Timetable[]
+  attendance Attendance[]
+  classrooms Classroom[]
 }
 
 model Classroom {
-  id             String             @id @default(cuid())
-  publicId       String             @unique
-  teacherId      String
-  teacher        Teacher            @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  subjectId      String?
-  subject        Subject?           @relation(fields: [subjectId], references: [id])
-  name           String
-  course         String?
-  section        String?
-  academicYear   String?
-  joinCode       String             @unique
-  inviteToken    String             @unique
-  createdAt      DateTime           @default(now())
-  members        ClassroomMember[]
-  attendance     Attendance[]
+  id           String            @id @default(cuid())
+  publicId     String            @unique
+  teacherId    String
+  teacher      Teacher           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subjectId    String?
+  subject      Subject?          @relation(fields: [subjectId], references: [id])
+  name         String
+  course       String?
+  section      String?
+  semesterId   String?
+  sectionId    String?
+  teachingMode String?           @default("COLLEGE")
+  room         String?
+  academicYear String?
+  joinCode     String            @unique
+  inviteToken  String            @unique
+  createdAt    DateTime          @default(now())
+  members      ClassroomMember[]
+  attendance   Attendance[]
+  schedules    Timetable[]
 }
 
 model ClassroomMember {
-  id           String     @id @default(cuid())
-  classroomId  String
-  classroom    Classroom  @relation(fields: [classroomId], references: [id], onDelete: Cascade)
-  studentId    String
-  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  status       String     @default("ACTIVE")
-  joinedAt     DateTime   @default(now())
+  id          String    @id @default(cuid())
+  classroomId String
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status      String    @default("ACTIVE")
+  joinedAt    DateTime  @default(now())
 
   @@unique([classroomId, studentId])
 }
 
 model Timetable {
-  id         String   @id @default(cuid())
-  sectionId  String?
-  subjectId  String?
-  teacherId  String?
-  section    Section? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  subject    Subject? @relation(fields: [subjectId], references: [id])
-  teacher    Teacher? @relation(fields: [teacherId], references: [id])
-  day        String   // Mon..Sun
-  period     Int      // 1..N
-  startTime  String   // HH:mm
-  endTime    String   // HH:mm
-  room       String?
-  createdAt  DateTime @default(now())
+  id          String     @id @default(cuid())
+  sectionId   String?
+  subjectId   String?
+  teacherId   String?
+  section     Section?   @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subject     Subject?   @relation(fields: [subjectId], references: [id])
+  teacher     Teacher?   @relation(fields: [teacherId], references: [id])
+  day         String // Mon..Sun
+  period      Int        @default(0) // legacy ordering only; teacher workflow uses time
+  startTime   String // HH:mm
+  endTime     String // HH:mm
+  room        String?
+  classroomId String?
+  classroom   Classroom? @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  createdAt   DateTime   @default(now())
 }
 
 model Attendance {
@@ -222,9 +235,11 @@ model Attendance {
   student     Student?   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   subject     Subject?   @relation(fields: [subjectId], references: [id])
   classroom   Classroom? @relation(fields: [classroomId], references: [id], onDelete: Cascade)
-  date        String     // YYYY-MM-DD
-  period      Int
-  status      String     // present | absent | late
+  date        String // YYYY-MM-DD
+  period      Int        @default(0) // retained for legacy/admin records
+  startTime   String?
+  endTime     String?
+  status      String // present | absent | late
   markedById  String?
   markedBy    Teacher?   @relation("MarkedBy", fields: [markedById], references: [id])
   markedAt    DateTime   @default(now())
@@ -246,17 +261,17 @@ model PersonalUser {
   avatarUrl    String?
   createdAt    DateTime @default(now())
 
-  timetable    PersonalTimetable[]
-  attendance   PersonalAttendance[]
+  timetable     PersonalTimetable[]
+  attendance    PersonalAttendance[]
   notifications Notification[]
-  settings     Setting?
+  settings      Setting?
 }
 
 model PersonalTimetable {
   id          String       @id @default(cuid())
   userId      String
   user        PersonalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-  day         String       // Mon..Sun
+  day         String // Mon..Sun
   period      Int
   startTime   String
   endTime     String
@@ -272,9 +287,9 @@ model PersonalAttendance {
   id          String       @id @default(cuid())
   userId      String
   user        PersonalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date        String       // YYYY-MM-DD
+  date        String // YYYY-MM-DD
   period      Int
-  status      String       // present | absent
+  status      String // present | absent
   subjectName String
   createdAt   DateTime     @default(now())
 
@@ -282,13 +297,13 @@ model PersonalAttendance {
 }
 
 model Notification {
-  id        String       @id @default(cuid())
+  id        String        @id @default(cuid())
   userId    String?
   user      PersonalUser? @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String       // info | warning | below_target | unmarked
+  type      String // info | warning | below_target | unmarked
   message   String
-  isRead    Boolean      @default(false)
-  createdAt DateTime     @default(now())
+  isRead    Boolean       @default(false)
+  createdAt DateTime      @default(now())
 }
 
 model Setting {
@@ -315,7 +330,7 @@ model CollegeNotification {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String   // info | warning | low_attendance | advice
+  type      String // info | warning | low_attendance | advice
   message   String
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())

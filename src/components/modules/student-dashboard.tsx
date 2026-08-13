@@ -132,6 +132,7 @@ type ClassroomRow = {
   joinCode: string
   inviteToken: string
   status: string
+  schedules?: { id: string; day: string; startTime: string; endTime: string; room?: string | null }[]
 }
 
 type ClassroomsResp = { classrooms: ClassroomRow[] }
@@ -418,6 +419,12 @@ export function StudentDashboard() {
                         <span className="inline-flex items-center gap-1"><Users className="size-3.5" />{c.teacher?.fullName || 'Teacher pending'}</span>
                         <span className="inline-flex items-center gap-1"><KeyRound className="size-3.5" />{c.joinCode}</span>
                       </div>
+                      {c.schedules && c.schedules.length > 0 && (
+                        <div className="mt-3 border-t pt-3 text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">Schedule: </span>
+                          {c.schedules.map((slot) => `${slot.day} ${slot.startTime}–${slot.endTime}`).join(' · ')}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

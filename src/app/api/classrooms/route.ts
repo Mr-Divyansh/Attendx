@@ -20,6 +20,7 @@ export async function GET() {
       where: { teacherId: session.teacherId },
       include: {
         subject: true,
+        schedules: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] },
         members: { include: { student: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -83,6 +84,11 @@ export async function GET() {
         course: c.course,
         section: c.section,
         academicYear: c.academicYear,
+        semesterId: c.semesterId,
+        sectionId: c.sectionId,
+        teachingMode: c.teachingMode,
+        room: c.room,
+        schedules: c.schedules,
         joinCode: c.joinCode,
         inviteToken: c.inviteToken,
         createdAt: c.createdAt,
@@ -111,10 +117,18 @@ export async function POST(req: NextRequest) {
       course?: string
       section?: string
       academicYear?: string
+      semesterId?: string
+      sectionId?: string
+      teachingMode?: 'SCHOOL' | 'COLLEGE'
+      room?: string
     }>(req)
 
     if (!body.name?.trim()) return errorResponse('Classroom name is required', 400)
 
+    if (body.subjectId) {
+      const subject = await db.subject.findFirst({ where: { id: body.subjectId, teacherId: session.teacherId } })
+      if (!subject) return errorResponse('Subject not found for this teacher', 404)
+    }
     const classroom = await db.classroom.create({
       data: {
         teacherId: session.teacherId,
@@ -124,6 +138,10 @@ export async function POST(req: NextRequest) {
         course: body.course?.trim() || null,
         section: body.section?.trim() || null,
         academicYear: body.academicYear?.trim() || null,
+        semesterId: body.semesterId || null,
+        sectionId: body.sectionId || null,
+        teachingMode: body.teachingMode === 'SCHOOL' ? 'SCHOOL' : 'COLLEGE',
+        room: body.room?.trim() || null,
         joinCode: makeJoinCode(),
         inviteToken: makeInviteToken(),
       },

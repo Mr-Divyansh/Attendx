@@ -13,6 +13,7 @@ export async function GET() {
           include: {
             teacher: true,
             subject: true,
+            schedules: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] },
           },
         },
       },
