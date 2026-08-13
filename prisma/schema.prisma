@@ -139,6 +139,7 @@ model Semester {
   students Student[]
   subjects Subject[]
   sections Section[]
+  classrooms Classroom[]
 }
 
 model Section {
@@ -185,6 +186,7 @@ model Classroom {
   course       String?
   section      String?
   semesterId   String?
+  semester     Semester?         @relation(fields: [semesterId], references: [id])
   sectionId    String?
   teachingMode String?           @default("COLLEGE")
   room         String?
