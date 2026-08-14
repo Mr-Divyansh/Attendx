@@ -3,13 +3,14 @@
 // AttendX — Student Dashboard (view-only, analytics-rich)
 // SQL projections of teacher-marked records: overall %, today's status, subject-wise %,
 // weekly report, monthly trend, at-risk subjects. No edit affordances.
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   DashboardShell,
   StatCard,
   type NavItem,
 } from '@/components/dashboard-shell'
 import { apiFetch } from '@/lib/api'
+import { usePolling } from '@/hooks/use-polling'
 import { toast } from 'sonner'
 import { useAuth } from '@/stores/auth-store'
 import {
@@ -209,6 +210,30 @@ export function StudentDashboard() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const classroomsRef = useRef<ClassroomRow[]>([])
+  const initializedRef = useRef(false)
+
+  // Silent background refresh of membership state so teacher approvals or
+  // rejections appear without a manual reload. Only the lightweight classroom
+  // endpoint is polled — dashboards stats load on mount / explicit actions.
+  const refreshClassrooms = useCallback(async () => {
+    try {
+      const c = await apiFetch<ClassroomsResp>('/api/student/classrooms')
+      const next = c.classrooms ?? []
+      if (initializedRef.current) {
+        const prevById = new Map(classroomsRef.current.map((x) => [x.id, x]))
+        const accepted = next.filter((n) => n.status === 'ACTIVE' && prevById.get(n.id)?.status === 'PENDING')
+        const removed = classroomsRef.current.filter((p) => p.status === 'PENDING' && !next.some((n) => n.id === p.id))
+        if (accepted.length > 0) toast.success(`Your request to join ${accepted.map((x) => x.name).join(', ')} was accepted.`)
+        if (removed.length > 0) toast.info(`Your request to join ${removed.map((x) => x.name).join(', ')} was withdrawn by your teacher.`)
+      }
+      classroomsRef.current = next
+      initializedRef.current = true
+      setClassrooms(next)
+    } catch {
+      // Keep the last known-good state during a transient API failure.
+    }
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -221,11 +246,14 @@ export function StudentDashboard() {
         apiFetch<MonthlyResp>('/api/student/monthly'),
         apiFetch<ClassroomsResp>('/api/student/classrooms'),
       ])
+      const rooms = c.classrooms ?? []
+      classroomsRef.current = rooms
+      initializedRef.current = true
       setStats(s)
       setSubjects(sub.subjects ?? [])
       setWeekly(w.week ?? [])
       setMonthly(m.weeks ?? [])
-      setClassrooms(c.classrooms ?? [])
+      setClassrooms(rooms)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load dashboard')
     } finally {
@@ -236,6 +264,7 @@ export function StudentDashboard() {
   useEffect(() => {
     load()
   }, [load])
+  usePolling(refreshClassrooms, 5000)
 
   const firstName = (user?.name || stats?.student.name || 'Student')
     .split(' ')[0]
@@ -265,6 +294,7 @@ export function StudentDashboard() {
     try {
       await apiFetch(`/api/student/classrooms/${classroom.id}`, { method: 'DELETE' })
       setClassrooms((current) => current.filter((item) => item.id !== classroom.id))
+      classroomsRef.current = classroomsRef.current.filter((item) => item.id !== classroom.id)
       toast.success(`Left ${classroom.name}`)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Unable to leave classroom')

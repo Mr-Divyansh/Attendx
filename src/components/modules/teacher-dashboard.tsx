@@ -1,8 +1,10 @@
 'use client'
 
 import type { FormEvent, ReactNode } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
+import { usePolling } from '@/hooks/use-polling'
 import { DashboardShell, StatCard, type NavItem } from '@/components/dashboard-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { BookOpen, CalendarDays, Check, CheckCircle2, ClipboardCheck, Clock, GraduationCap, Inbox, Loader2, Mail, Plus, Settings2, Trash2, UserMinus, UserPlus, Users, X } from 'lucide-react'
+import { BookOpen, CalendarDays, Check, CheckCircle2, ClipboardCheck, Clock, GraduationCap, Inbox, Loader2, Mail, Plus, RefreshCw, Settings2, Trash2, UserMinus, UserPlus, Users, X } from 'lucide-react'
 
 type Semester = { id: string; name: string }
 type Section = { id: string; name: string }
@@ -28,7 +30,12 @@ const dateToday = () => new Date().toISOString().slice(0, 10)
 const displayTime = (time: string) => new Date(`2000-01-01T${time}`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
 export function TeacherDashboard() {
-  const [active, setActive] = useState<'overview' | 'attendance' | 'classrooms' | 'setup'>('overview')
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [active, setActive] = useState<'overview' | 'attendance' | 'classrooms' | 'setup'>(() => {
+    const tab = searchParams.get('tab')
+    return tab === 'attendance' || tab === 'classrooms' || tab === 'setup' ? tab : 'overview'
+  })
   const [classrooms, setClassrooms] = useState<Classroom[]>([])
   const [semesters, setSemesters] = useState<Semester[]>([])
   const [sections, setSections] = useState<Section[]>([])
@@ -36,29 +43,85 @@ export function TeacherDashboard() {
   const [selectedSemester, setSelectedSemester] = useState('')
   const [selectedSection, setSelectedSection] = useState('')
   const [loading, setLoading] = useState(true)
+  const [requestsError, setRequestsError] = useState<string | null>(null)
   const [classDialog, setClassDialog] = useState(false)
-  const [detail, setDetail] = useState<Classroom | null>(null)
+  const [detailId, setDetailId] = useState<string | null>(() => searchParams.get('class'))
   const [busyMember, setBusyMember] = useState<string | null>(null)
+  const classroomsRef = useRef<Classroom[]>([])
+  const initializedRef = useRef(false)
 
-  const respondToRequest = async (memberId: string, action: 'approve' | 'reject') => {
-    setBusyMember(memberId)
-    try {
-      await apiFetch('/api/classrooms/members', { method: 'POST', body: JSON.stringify({ memberId, action }) })
-      toast.success(action === 'approve' ? 'Request accepted. The student can now access the classroom.' : 'Request rejected')
-      load()
-    } catch (e) { toast.error(e instanceof Error ? e.message : 'Unable to update request') } finally { setBusyMember(null) }
+  // URL-backed navigation so the current tab and open classroom survive reloads.
+  const updateUrl = (patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams.toString())
+    for (const [key, value] of Object.entries(patch)) {
+      if (value) next.set(key, value)
+      else next.delete(key)
+    }
+    const qs = next.toString()
+    router.replace(qs ? `/?${qs}` : '/', { scroll: false })
   }
+
+  const navigate = (id: string) => {
+    setActive(id as typeof active)
+    updateUrl({ tab: id })
+  }
+
+  // Silent background refresh used by live polling. Never flips the spinner,
+  // and surfaces new join requests without a manual reload.
+  const refreshClassrooms = useCallback(async () => {
+    try {
+      const c = await apiFetch<{ classrooms: Classroom[] }>('/api/classrooms')
+      const next = c.classrooms || []
+      if (initializedRef.current) {
+        const prevPending = new Set(classroomsRef.current.flatMap((x) => x.members.filter((m) => m.status === 'PENDING').map((m) => m.id)))
+        const newCount = next.reduce(
+          (sum, x) => sum + x.members.filter((m) => m.status === 'PENDING' && !prevPending.has(m.id)).length,
+          0
+        )
+        if (newCount > 0) toast.success(`${newCount} new student request${newCount > 1 ? 's' : ''} received`)
+      }
+      classroomsRef.current = next
+      initializedRef.current = true
+      setClassrooms(next)
+      setRequestsError(null)
+    } catch (e) {
+      setRequestsError(e instanceof Error ? e.message : 'Unable to load requests')
+    }
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const [c, s] = await Promise.all([apiFetch<{ classrooms: Classroom[] }>('/api/classrooms'), apiFetch<Semester[]>('/api/teacher/semesters')])
-      setClassrooms(c.classrooms || []); setSemesters(s || [])
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to load teacher data') } finally { setLoading(false) }
+      const rooms = c.classrooms || []
+      classroomsRef.current = rooms
+      initializedRef.current = true
+      setClassrooms(rooms)
+      setSemesters(s || [])
+      setRequestsError(null)
+    } catch (error) {
+      setRequestsError(error instanceof Error ? error.message : 'Unable to load teacher data')
+      toast.error(error instanceof Error ? error.message : 'Unable to load teacher data')
+    } finally { setLoading(false) }
   }, [])
   useEffect(() => { load() }, [load])
+  usePolling(refreshClassrooms, 5000)
   useEffect(() => { if (selectedSemester) apiFetch<Section[]>(`/api/teacher/sections?semesterId=${selectedSemester}`).then(setSections).catch(() => setSections([])); else setSections([]) }, [selectedSemester])
   useEffect(() => { if (selectedSection) apiFetch<Subject[]>(`/api/teacher/subjects?sectionId=${selectedSection}`).then(setSubjects).catch(() => setSubjects([])); else setSubjects([]) }, [selectedSection])
+
+  const respondToRequest = async (memberId: string, action: 'approve' | 'reject') => {
+    setBusyMember(memberId)
+    try {
+      await apiFetch('/api/classrooms/members', { method: 'POST', body: JSON.stringify({ memberId, action }) })
+      toast.success(action === 'approve' ? 'Student request accepted' : 'Student request rejected')
+      refreshClassrooms()
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Unable to update request') } finally { setBusyMember(null) }
+  }
+
+  const openClass = (c: Classroom) => { setDetailId(c.id); updateUrl({ class: c.id }) }
+  const closeClass = () => { setDetailId(null); updateUrl({ class: null }) }
+  // Derive from live state so the open classroom dialog updates as data changes.
+  const detail = detailId ? classrooms.find((c) => c.id === detailId) || null : null
 
   const nav: NavItem[] = [
     { id: 'overview', label: "Today's Classes", icon: CalendarDays },
@@ -70,20 +133,20 @@ export function TeacherDashboard() {
   const todays = classrooms.flatMap(c => (c.schedules || []).filter(s => s.day === todayName).map(s => ({ classroom: c, schedule: s })))
   const activeStudents = classrooms.reduce((sum, c) => sum + c.members.filter(m => m.status === 'ACTIVE').length, 0)
 
-  return <DashboardShell nav={nav} active={active} onNavigate={(id) => setActive(id as typeof active)} title={active === 'overview' ? "Today's Classes" : active === 'attendance' ? 'Mark Attendance' : active === 'setup' ? 'Academic Setup' : 'Classrooms'} description="Teacher workspace" accent="Teacher">
+  return <DashboardShell nav={nav} active={active} onNavigate={navigate} title={active === 'overview' ? "Today's Classes" : active === 'attendance' ? 'Mark Attendance' : active === 'setup' ? 'Academic Setup' : 'Classrooms'} description="Teacher workspace" accent="Teacher">
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Today's classes" value={todays.length} icon={CalendarDays} />
         <StatCard label="Classrooms" value={classrooms.length} icon={BookOpen} tone="chart-3" />
         <StatCard label="Active students" value={activeStudents} icon={Users} tone="chart-2" />
       </div>
-      {active === 'overview' && <TodayPanel classes={todays} onOpen={setDetail} />}
-      {active === 'attendance' && <AttendancePanel classrooms={classrooms} onOpen={setDetail} />}
-      {active === 'classrooms' && <ClassroomsPanel classrooms={classrooms} loading={loading} onCreate={() => setClassDialog(true)} onOpen={setDetail} onDelete={async id => { if (!confirm('Delete this classroom? Students will only lose this classroom membership.')) return; try { await apiFetch(`/api/classrooms/${id}`, { method: 'DELETE' }); toast.success('Classroom deleted'); load() } catch (e) { toast.error(e instanceof Error ? e.message : 'Unable to delete classroom') } }} onAccept={memberId => respondToRequest(memberId, 'approve')} onReject={memberId => respondToRequest(memberId, 'reject')} busyMember={busyMember} />}
+      {active === 'overview' && <TodayPanel classes={todays} onOpen={openClass} />}
+      {active === 'attendance' && <AttendancePanel classrooms={classrooms} onOpen={openClass} />}
+      {active === 'classrooms' && <ClassroomsPanel classrooms={classrooms} loading={loading} requestsError={requestsError} onRetry={load} onCreate={() => setClassDialog(true)} onOpen={openClass} onDelete={async id => { if (!confirm('Delete this classroom? Students will only lose this classroom membership.')) return; try { await apiFetch(`/api/classrooms/${id}`, { method: 'DELETE' }); toast.success('Classroom deleted'); if (detailId === id) { setDetailId(null); updateUrl({ class: null }) } load() } catch (e) { toast.error(e instanceof Error ? e.message : 'Unable to delete classroom') } }} onAccept={memberId => respondToRequest(memberId, 'approve')} onReject={memberId => respondToRequest(memberId, 'reject')} busyMember={busyMember} />}
       {active === 'setup' && <SetupPanel semesters={semesters} sections={sections} subjects={subjects} selectedSemester={selectedSemester} selectedSection={selectedSection} onSemester={setSelectedSemester} onSection={setSelectedSection} onChanged={load} />}
     </div>
     <CreateClassDialog open={classDialog} onOpenChange={setClassDialog} semesters={semesters} sections={sections} subjects={subjects} onSemester={setSelectedSemester} onSection={setSelectedSection} onCreated={() => { setClassDialog(false); load() }} />
-    <ClassDetailDialog classroom={detail} onClose={() => setDetail(null)} onChanged={() => { load(); setDetail(null) }} />
+    <ClassDetailDialog classroom={detail} onClose={closeClass} onChanged={refreshClassrooms} />
   </DashboardShell>
 }
 
@@ -96,31 +159,56 @@ function AttendanceForm({ classroom }: { classroom: Classroom }) { const [date, 
   const save = async () => { if (!data) return; setBusy(true); try { const res = await apiFetch<{ saved: number }>(`/api/classrooms/${classroom.id}/attendance`, { method: 'POST', body: JSON.stringify({ date, startTime, endTime, entries: data.students.map(s => ({ studentId: s.id, status: marks[s.id] || 'present' })) }) }); toast.success(`Attendance saved successfully for ${res.saved} students.`) } catch (e) { toast.error(e instanceof Error ? e.message : 'Unable to save attendance') } finally { setBusy(false) } }
   return <div className="space-y-4"><div className="grid gap-3 sm:grid-cols-3"><Field label="Date"><Input type="date" value={date} onChange={e => setDate(e.target.value)} /></Field><Field label="Start time"><Input type="time" value={startTime} onChange={e => setStart(e.target.value)} /></Field><Field label="End time"><Input type="time" value={endTime} onChange={e => setEnd(e.target.value)} /></Field></div><Button variant="secondary" onClick={load} disabled={busy}>{busy && <Loader2 className="mr-2 size-4 animate-spin" />}Load student list</Button>{data && <><div className="rounded-lg border"><Table><TableHeader><TableRow><TableHead>Roll number</TableHead><TableHead>Student</TableHead><TableHead className="text-right">Status</TableHead></TableRow></TableHeader><TableBody>{data.students.map(s => <TableRow key={s.id}><TableCell>{s.rollNo}</TableCell><TableCell className="font-medium">{s.fullName}</TableCell><TableCell className="text-right"><div className="inline-flex rounded-lg border p-1"><Button size="sm" variant={marks[s.id] === 'present' ? 'default' : 'ghost'} onClick={() => setMarks(m => ({ ...m, [s.id]: 'present' }))}>Present</Button><Button size="sm" variant={marks[s.id] === 'absent' ? 'destructive' : 'ghost'} onClick={() => setMarks(m => ({ ...m, [s.id]: 'absent' }))}>Absent</Button></div></TableCell></TableRow>)}</TableBody></Table></div><Button onClick={save} disabled={busy || !data.students.length}><CheckCircle2 className="mr-2 size-4" />Save attendance</Button></>}</div> }
 
-function ClassroomsPanel({ classrooms, loading, onCreate, onOpen, onDelete, onAccept, onReject, busyMember }: { classrooms: Classroom[]; loading: boolean; onCreate: () => void; onOpen: (c: Classroom) => void; onDelete: (id: string) => void; onAccept: (memberId: string) => void; onReject: (memberId: string) => void; busyMember: string | null }) {
+function ClassroomsPanel({ classrooms, loading, requestsError, onRetry, onCreate, onOpen, onDelete, onAccept, onReject, busyMember }: { classrooms: Classroom[]; loading: boolean; requestsError: string | null; onRetry: () => void; onCreate: () => void; onOpen: (c: Classroom) => void; onDelete: (id: string) => void; onAccept: (memberId: string) => void; onReject: (memberId: string) => void; busyMember: string | null }) {
   const pending = classrooms.flatMap((c) => c.members.filter((m) => m.status === 'PENDING').map((m) => ({ ...m, classroomName: c.name })))
   const activeCount = (c: Classroom) => c.members.filter((m) => m.status === 'ACTIVE').length
-  return <div className="space-y-6"><StudentRequestsPanel requests={pending} onAccept={onAccept} onReject={onReject} busyMember={busyMember} /><Card><CardHeader className="flex-row items-center justify-between"><div><CardTitle>Classrooms</CardTitle><CardDescription>Manage classes, students, schedules and invitations.</CardDescription></div><Button onClick={onCreate}><Plus className="mr-2 size-4" />Create classroom</Button></CardHeader><CardContent>{loading ? <Loader2 className="animate-spin" /> : classrooms.length ? <div className="grid gap-4 md:grid-cols-2">{classrooms.map(c => <div key={c.id} className="rounded-xl border p-4"><div className="flex justify-between gap-3"><div><h3 className="font-semibold">{c.name}</h3><p className="text-sm text-muted-foreground">{c.course || 'Course not set'} · {c.subject?.name || 'Subject not set'}{c.year ? ` · Year ${c.year}` : ''}</p></div><div className="flex flex-col items-end gap-1">{c.expired ? <Badge className="border-transparent bg-red-500/15 text-red-600 dark:text-red-400">Expired</Badge> : null}<Badge>{activeCount(c)} active</Badge>{c.members.some(m => m.status === 'PENDING') ? <Badge className="border-transparent bg-amber-500/15 text-amber-600 dark:text-amber-400">{c.members.filter(m => m.status === 'PENDING').length} pending</Badge> : null}</div></div><div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>Year: {c.year ? `Year ${c.year}` : '—'}</span><span>Duration: {c.durationYears ? `${c.durationYears} Year${c.durationYears > 1 ? 's' : ''}` : '—'}</span></div><p className="mt-3 text-xs text-muted-foreground">Join code: <span className="font-mono font-semibold text-foreground">{c.joinCode}</span></p><div className="mt-4 flex gap-2"><Button size="sm" onClick={() => onOpen(c)}>Open class</Button><Button size="sm" variant="outline" onClick={() => onDelete(c.id)}><Trash2 className="size-4" /></Button></div></div>)}</div> : <Empty text="No classrooms yet. Create your first class to invite students." />}</CardContent></Card></div> }
-function StudentRequestsPanel({ requests, onAccept, onReject, busyMember }: { requests: { id: string; joinedAt: string; classroomName: string; student: { id?: string; fullName: string; rollNo: string; email?: string | null } }[]; onAccept: (memberId: string) => void; onReject: (memberId: string) => void; busyMember: string | null }) { return <Card><CardHeader className="flex-row items-center justify-between"><div><CardTitle className="flex items-center gap-2"><Inbox className="size-5 text-primary" />Student Requests</CardTitle><CardDescription>Students waiting for your approval to join your classrooms.</CardDescription></div>{requests.length > 0 ? <Badge>{requests.length} pending</Badge> : null}</CardHeader><CardContent>{requests.length === 0 ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">No pending student requests</p> : <div className="space-y-3">{requests.map(r => <div key={r.id} className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="font-medium">{r.student.fullName}</p><p className="text-sm text-muted-foreground">Roll No: {r.student.rollNo}{r.student.email ? ` · ${r.student.email}` : ''}</p><p className="text-sm text-muted-foreground">{r.classroomName}{r.joinedAt ? ` · Requested ${new Date(r.joinedAt).toLocaleString()}` : ''}</p></div><div className="flex gap-2 shrink-0"><Button size="sm" variant="outline" onClick={() => onReject(r.id)} disabled={busyMember === r.id}><X className="mr-1 size-4" />Reject</Button><Button size="sm" onClick={() => onAccept(r.id)} disabled={busyMember === r.id}>{busyMember === r.id ? <Loader2 className="mr-1 size-4 animate-spin" /> : <Check className="mr-1 size-4" />}Accept</Button></div></div>)}</div>}</CardContent></Card> }
+  return <div className="space-y-6"><StudentRequestsPanel requests={pending} loading={loading} error={requestsError} onRetry={onRetry} onAccept={onAccept} onReject={onReject} busyMember={busyMember} /><Card><CardHeader className="flex-row items-center justify-between"><div><CardTitle>Classrooms</CardTitle><CardDescription>Manage classes, students, schedules and invitations.</CardDescription></div><Button onClick={onCreate}><Plus className="mr-2 size-4" />Create classroom</Button></CardHeader><CardContent>{loading ? <Loader2 className="animate-spin" /> : classrooms.length ? <div className="grid gap-4 md:grid-cols-2">{classrooms.map(c => <div key={c.id} className="rounded-xl border p-4"><div className="flex justify-between gap-3"><div><h3 className="font-semibold">{c.name}</h3><p className="text-sm text-muted-foreground">{c.course || 'Course not set'} · {c.subject?.name || 'Subject not set'}{c.year ? ` · Year ${c.year}` : ''}</p></div><div className="flex flex-col items-end gap-1">{c.expired ? <Badge className="border-transparent bg-red-500/15 text-red-600 dark:text-red-400">Expired</Badge> : null}<Badge>{activeCount(c)} active</Badge>{c.members.some(m => m.status === 'PENDING') ? <Badge className="border-transparent bg-amber-500/15 text-amber-600 dark:text-amber-400">{c.members.filter(m => m.status === 'PENDING').length} pending</Badge> : null}</div></div><div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>Year: {c.year ? `Year ${c.year}` : '—'}</span><span>Duration: {c.durationYears ? `${c.durationYears} Year${c.durationYears > 1 ? 's' : ''}` : '—'}</span></div><p className="mt-3 text-xs text-muted-foreground">Join code: <span className="font-mono font-semibold text-foreground">{c.joinCode}</span></p><div className="mt-4 flex gap-2"><Button size="sm" onClick={() => onOpen(c)}>Open class</Button><Button size="sm" variant="outline" onClick={() => onDelete(c.id)}><Trash2 className="size-4" /></Button></div></div>)}</div> : <Empty text="No classrooms yet. Create your first class to invite students." />}</CardContent></Card></div> }
+function StudentRequestsPanel({ requests, loading, error, onRetry, onAccept, onReject, busyMember }: { requests: { id: string; joinedAt: string; classroomName: string; student: { id?: string; fullName: string; rollNo: string; email?: string | null } }[]; loading: boolean; error: string | null; onRetry: () => void; onAccept: (memberId: string) => void; onReject: (memberId: string) => void; busyMember: string | null }) { return <Card><CardHeader className="flex-row items-center justify-between"><div><CardTitle className="flex items-center gap-2"><Inbox className="size-5 text-primary" />Student Requests<span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"><span className="relative flex size-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" /><span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" /></span>Live</span></CardTitle><CardDescription>Students waiting for your approval to join your classrooms.</CardDescription></div>{!error && requests.length > 0 ? <Badge className="border-transparent bg-red-500/15 text-red-600 dark:text-red-400">{requests.length} new request{requests.length > 1 ? 's' : ''}</Badge> : null}</CardHeader><CardContent>{error ? <div className="rounded-xl border border-dashed p-6 text-center"><p className="text-sm text-muted-foreground">Unable to load requests. Try again.</p><Button variant="outline" size="sm" className="mt-3" onClick={onRetry}><RefreshCw className="mr-1 size-4" />Try again</Button></div> : loading && requests.length === 0 ? <p className="flex items-center justify-center gap-2 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Checking for new requests…</p> : requests.length === 0 ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">No pending requests</p> : <div className="space-y-3">{requests.map(r => <div key={r.id} className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="font-medium">{r.student.fullName}</p><p className="text-sm text-muted-foreground">Roll No: {r.student.rollNo}{r.student.email ? ` · ${r.student.email}` : ''}</p><p className="text-sm text-muted-foreground">{r.classroomName}{r.joinedAt ? ` · Requested ${new Date(r.joinedAt).toLocaleString()}` : ''}</p></div><div className="flex gap-2 shrink-0"><Button size="sm" variant="outline" onClick={() => onReject(r.id)} disabled={busyMember === r.id}><X className="mr-1 size-4" />Reject</Button><Button size="sm" onClick={() => onAccept(r.id)} disabled={busyMember === r.id}>{busyMember === r.id ? <Loader2 className="mr-1 size-4 animate-spin" /> : <Check className="mr-1 size-4" />}Accept</Button></div></div>)}</div>}</CardContent></Card> }
 
 function SetupPanel({ semesters, sections, subjects, selectedSemester, selectedSection, onSemester, onSection, onChanged }: { semesters: Semester[]; sections: Section[]; subjects: Subject[]; selectedSemester: string; selectedSection: string; onSemester: (v: string) => void; onSection: (v: string) => void; onChanged: () => void }) { const create = async (url: string, body: unknown) => { try { await apiFetch(url, { method: 'POST', body: JSON.stringify(body) }); toast.success('Saved'); onChanged() } catch (e) { toast.error(e instanceof Error ? e.message : 'Unable to save') } }; return <div className="grid gap-6 lg:grid-cols-3"><ManageCard title="Semesters / classes" placeholder="e.g. 1st Semester or Class 10" items={semesters} onAdd={name => create('/api/teacher/semesters', { name })} onDelete={id => apiFetch(`/api/teacher/semesters?id=${id}`, { method: 'DELETE' }).then(onChanged)} /><Card><CardHeader><CardTitle>Sections</CardTitle><CardDescription>Create a section inside a teacher-owned semester/class.</CardDescription></CardHeader><CardContent className="space-y-3"><Select value={selectedSemester} onValueChange={onSemester}><SelectTrigger><SelectValue placeholder="Choose semester/class" /></SelectTrigger><SelectContent>{semesters.map(s => <SelectItem value={s.id} key={s.id}>{s.name}</SelectItem>)}</SelectContent></Select><AddForm placeholder="e.g. A" disabled={!selectedSemester} onAdd={name => create('/api/teacher/sections', { name, semesterId: selectedSemester })} />{sections.map(x => <p key={x.id} className="rounded-md border px-3 py-2 text-sm">{x.name}</p>)}</CardContent></Card><Card><CardHeader><CardTitle>Subjects</CardTitle><CardDescription>Add the actual taught subject (Physics, Programming, English, etc.).</CardDescription></CardHeader><CardContent className="space-y-3"><Select value={selectedSection} onValueChange={onSection} disabled={!selectedSemester}><SelectTrigger><SelectValue placeholder="Choose section" /></SelectTrigger><SelectContent>{sections.map(s => <SelectItem value={s.id} key={s.id}>{s.name}</SelectItem>)}</SelectContent></Select><AddForm placeholder="Enter subject name" disabled={!selectedSection} onAdd={name => create('/api/teacher/subjects', { name, sectionId: selectedSection })} />{subjects.map(x => <p key={x.id} className="rounded-md border px-3 py-2 text-sm">{x.name}</p>)}</CardContent></Card></div> }
 
 function ManageCard({ title, placeholder, items, onAdd, onDelete }: { title: string; placeholder: string; items: { id: string; name: string }[]; onAdd: (name: string) => void; onDelete: (id: string) => void }) { return <Card><CardHeader><CardTitle>{title}</CardTitle><CardDescription>Create custom values that fit your school or college.</CardDescription></CardHeader><CardContent className="space-y-3"><AddForm placeholder={placeholder} onAdd={onAdd} />{items.map(x => <div key={x.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"><span>{x.name}</span><Button variant="ghost" size="icon" onClick={() => onDelete(x.id)}><Trash2 className="size-4" /></Button></div>)}</CardContent></Card> }
 function AddForm({ placeholder, disabled, onAdd }: { placeholder: string; disabled?: boolean; onAdd: (value: string) => void }) { const [value, setValue] = useState(''); return <form className="flex gap-2" onSubmit={e => { e.preventDefault(); if (value.trim()) { onAdd(value.trim()); setValue('') } }}><Input value={value} disabled={disabled} onChange={e => setValue(e.target.value)} placeholder={placeholder} /><Button disabled={disabled} size="icon"><Plus className="size-4" /></Button></form> }
+const CLASSROOM_DRAFT_KEY = 'attendx:classroom-draft:v1'
+type ClassroomDraft = { name: string; course: string; mode: string; semesterId: string; sectionId: string; subjectId: string; year: string; durationYears: string; room: string }
+const EMPTY_CLASSROOM_DRAFT: ClassroomDraft = { name: '', course: '', mode: 'COLLEGE', semesterId: '', sectionId: '', subjectId: '', year: '', durationYears: '', room: '' }
+function loadClassroomDraft(): ClassroomDraft | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(CLASSROOM_DRAFT_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return { ...EMPTY_CLASSROOM_DRAFT, ...(parsed && typeof parsed === 'object' ? parsed : {}) }
+  } catch {
+    return null
+  }
+}
 function CreateClassDialog({ open, onOpenChange, semesters, sections, subjects, onSemester, onSection, onCreated }: { open: boolean; onOpenChange: (v: boolean) => void; semesters: Semester[]; sections: Section[]; subjects: Subject[]; onSemester: (v: string) => void; onSection: (v: string) => void; onCreated: () => void }) {
-  const [name, setName] = useState(''); const [course, setCourse] = useState(''); const [mode, setMode] = useState('COLLEGE'); const [semesterId, setSemesterId] = useState(''); const [sectionId, setSectionId] = useState(''); const [subjectId, setSubjectId] = useState(''); const [year, setYear] = useState(''); const [durationYears, setDurationYears] = useState(''); const [room, setRoom] = useState(''); const [busy, setBusy] = useState(false)
-  useEffect(() => { onSemester(semesterId) }, [semesterId, onSemester]); useEffect(() => { onSection(sectionId) }, [sectionId, onSection])
-  const submit = async (e: FormEvent) => { e.preventDefault(); setBusy(true); try { await apiFetch('/api/classrooms', { method: 'POST', body: JSON.stringify({ name, course, teachingMode: mode, semesterId: semesterId || undefined, sectionId: sectionId || undefined, subjectId: subjectId || undefined, year: year ? Number(year) : undefined, durationYears: durationYears ? Number(durationYears) : undefined, room }) }); toast.success('Classroom created. Share its join code with students.'); onCreated() } catch (x) { toast.error(x instanceof Error ? x.message : 'Unable to create classroom') } finally { setBusy(false) } }
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>Create classroom</DialogTitle></DialogHeader><form className="space-y-3" onSubmit={submit}>
-    <Field label="Teaching environment"><Select value={mode} onValueChange={setMode}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="COLLEGE">College / University</SelectItem><SelectItem value="SCHOOL">School</SelectItem></SelectContent></Select></Field>
-    <Field label="Classroom name"><Input required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. BCA Programming – A" /></Field>
-    <Field label="Course / class"><Input list="courses" value={course} onChange={e => setCourse(e.target.value)} placeholder="BCA, Class 10, or custom" /><datalist id="courses">{COURSES.map(c => <option key={c} value={c} />)}</datalist></Field>
-    <div className="grid gap-3 sm:grid-cols-2"><Field label="Year"><Select value={year} onValueChange={setYear}><SelectTrigger><SelectValue placeholder="Choose year" /></SelectTrigger><SelectContent>{[1, 2, 3, 4].map(n => <SelectItem key={n} value={String(n)}>Year {n}</SelectItem>)}</SelectContent></Select></Field><Field label="Class Duration"><Select value={durationYears} onValueChange={setDurationYears}><SelectTrigger><SelectValue placeholder="Choose duration" /></SelectTrigger><SelectContent>{[1, 2, 3, 4].map(n => <SelectItem key={n} value={String(n)}>{n} Year{n > 1 ? 's' : ''}</SelectItem>)}</SelectContent></Select></Field></div>
+  const [draft, setDraft] = useState<ClassroomDraft>(() => loadClassroomDraft() ?? EMPTY_CLASSROOM_DRAFT)
+  const [busy, setBusy] = useState(false)
+  const persist = (patch: Partial<ClassroomDraft>) => setDraft((d) => {
+    const next = { ...d, ...patch }
+    try { window.localStorage.setItem(CLASSROOM_DRAFT_KEY, JSON.stringify(next)) } catch { /* storage unavailable */ }
+    return next
+  })
+  const clearDraft = () => {
+    try { window.localStorage.removeItem(CLASSROOM_DRAFT_KEY) } catch { /* ignore */ }
+    setDraft(EMPTY_CLASSROOM_DRAFT)
+  }
+  const hasDraft = draft.mode !== 'COLLEGE' || [draft.name, draft.course, draft.semesterId, draft.sectionId, draft.subjectId, draft.year, draft.durationYears, draft.room].some((v) => v.trim() !== '')
+  useEffect(() => { onSemester(draft.semesterId) }, [draft.semesterId, onSemester]); useEffect(() => { onSection(draft.sectionId) }, [draft.sectionId, onSection])
+  const submit = async (e: FormEvent) => { e.preventDefault(); setBusy(true); try { await apiFetch('/api/classrooms', { method: 'POST', body: JSON.stringify({ name: draft.name, course: draft.course, teachingMode: draft.mode, semesterId: draft.semesterId || undefined, sectionId: draft.sectionId || undefined, subjectId: draft.subjectId || undefined, year: draft.year ? Number(draft.year) : undefined, durationYears: draft.durationYears ? Number(draft.durationYears) : undefined, room: draft.room }) }); toast.success('Classroom created. Share its join code with students.'); clearDraft(); onCreated() } catch (x) { toast.error(x instanceof Error ? x.message : 'Unable to create classroom') } finally { setBusy(false) } }
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle className="flex items-center justify-between gap-3">Create classroom{hasDraft && <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={clearDraft}>Clear draft</Button>}</DialogTitle></DialogHeader><form className="space-y-3" onSubmit={submit}>
+    <Field label="Teaching environment"><Select value={draft.mode} onValueChange={v => persist({ mode: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="COLLEGE">College / University</SelectItem><SelectItem value="SCHOOL">School</SelectItem></SelectContent></Select></Field>
+    <Field label="Classroom name"><Input required value={draft.name} onChange={e => persist({ name: e.target.value })} placeholder="e.g. BCA Programming – A" /></Field>
+    <Field label="Course / class"><Input list="courses" value={draft.course} onChange={e => persist({ course: e.target.value })} placeholder="BCA, Class 10, or custom" /><datalist id="courses">{COURSES.map(c => <option key={c} value={c} />)}</datalist></Field>
+    <div className="grid gap-3 sm:grid-cols-2"><Field label="Year"><Select value={draft.year} onValueChange={v => persist({ year: v })}><SelectTrigger><SelectValue placeholder="Choose year" /></SelectTrigger><SelectContent>{[1, 2, 3, 4].map(n => <SelectItem key={n} value={String(n)}>Year {n}</SelectItem>)}</SelectContent></Select></Field><Field label="Class Duration"><Select value={draft.durationYears} onValueChange={v => persist({ durationYears: v })}><SelectTrigger><SelectValue placeholder="Choose duration" /></SelectTrigger><SelectContent>{[1, 2, 3, 4].map(n => <SelectItem key={n} value={String(n)}>{n} Year{n > 1 ? 's' : ''}</SelectItem>)}</SelectContent></Select></Field></div>
     {semesters.length === 0 ? <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">Semester, section, and subject are not needed to create this class. Create them later in <strong>Academic Setup</strong> only when you need academic grouping.</p> : <>
-      <Field label={mode === 'SCHOOL' ? 'Class structure' : 'Semester'}><Select value={semesterId} onValueChange={setSemesterId}><SelectTrigger><SelectValue placeholder="Choose semester/class" /></SelectTrigger><SelectContent>{semesters.map(s => <SelectItem value={s.id} key={s.id}>{s.name}</SelectItem>)}</SelectContent></Select></Field>
-      {semesterId && sections.length > 0 && <Field label="Section"><Select value={sectionId} onValueChange={setSectionId}><SelectTrigger><SelectValue placeholder="Choose section" /></SelectTrigger><SelectContent>{sections.map(s => <SelectItem value={s.id} key={s.id}>{s.name}</SelectItem>)}</SelectContent></Select></Field>}
-      {sectionId && subjects.length > 0 && <Field label="Subject"><Select value={subjectId} onValueChange={setSubjectId}><SelectTrigger><SelectValue placeholder="Choose subject" /></SelectTrigger><SelectContent>{subjects.map(s => <SelectItem value={s.id} key={s.id}>{s.name}</SelectItem>)}</SelectContent></Select></Field>}
+      <Field label={draft.mode === 'SCHOOL' ? 'Class structure' : 'Semester'}><Select value={draft.semesterId} onValueChange={v => persist({ semesterId: v })}><SelectTrigger><SelectValue placeholder="Choose semester/class" /></SelectTrigger><SelectContent>{semesters.map(s => <SelectItem value={s.id} key={s.id}>{s.name}</SelectItem>)}</SelectContent></Select></Field>
+      {draft.semesterId && sections.length > 0 && <Field label="Section"><Select value={draft.sectionId} onValueChange={v => persist({ sectionId: v })}><SelectTrigger><SelectValue placeholder="Choose section" /></SelectTrigger><SelectContent>{sections.map(s => <SelectItem value={s.id} key={s.id}>{s.name}</SelectItem>)}</SelectContent></Select></Field>}
+      {draft.sectionId && subjects.length > 0 && <Field label="Subject"><Select value={draft.subjectId} onValueChange={v => persist({ subjectId: v })}><SelectTrigger><SelectValue placeholder="Choose subject" /></SelectTrigger><SelectContent>{subjects.map(s => <SelectItem value={s.id} key={s.id}>{s.name}</SelectItem>)}</SelectContent></Select></Field>}
     </>}
-    <Field label="Room (optional)"><Input value={room} onChange={e => setRoom(e.target.value)} /></Field><Button className="w-full" disabled={busy}>{busy && <Loader2 className="mr-2 size-4 animate-spin" />}Create classroom</Button>
+    <Field label="Room (optional)"><Input value={draft.room} onChange={e => persist({ room: e.target.value })} /></Field><Button className="w-full" disabled={busy}>{busy && <Loader2 className="mr-2 size-4 animate-spin" />}Create classroom</Button>
   </form></DialogContent></Dialog>
 }
 function ClassDetailDialog({ classroom, onClose, onChanged }: { classroom: Classroom | null; onClose: () => void; onChanged: () => void }) {
