@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     const form = new FormData()
     form.set('access_key', accessKey)
-    form.set('subject', 'AttendX contact request')
+    form.set('subject', data.data.subject)
     form.set('from_name', 'AttendX Contact Form')
     form.set('name', data.data.name)
     form.set('email', data.data.email)
