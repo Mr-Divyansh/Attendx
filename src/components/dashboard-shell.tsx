@@ -64,9 +64,9 @@ export function DashboardShell({
     .toUpperCase()
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-screen flex bg-background selection:bg-primary/20">
       {/* Sidebar */}
-      <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r bg-sidebar">
+      <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r border-sidebar-border/80 bg-sidebar">
         <div className="h-16 flex items-center gap-2 px-5 border-b">
           <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border bg-card/80 shadow-sm">
             <Image
@@ -83,12 +83,13 @@ export function DashboardShell({
           <p className="px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
             {accent}
           </p>
-          <nav className="space-y-1">
+          <nav className="flex flex-col gap-1" aria-label={`${accent} navigation`}>
             {nav.map((item) => (
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                aria-current={active === item.id ? 'page' : undefined}
+                className={`group relative w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all pressable ${
                   active === item.id
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -204,7 +205,7 @@ export function DashboardShell({
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-6 overflow-x-hidden">{children}</main>
+        <main className="flex-1 overflow-x-hidden px-4 py-5 md:px-8 md:py-7">{children}</main>
         <SiteFooter compact />
       </div>
     </div>
@@ -230,10 +231,10 @@ export function StatCard({
     'chart-5': 'bg-chart-5/10 text-chart-5',
   }
   return (
-    <div className="group rounded-xl border bg-card p-4 md:p-5 lift hover:border-primary/30 hover:shadow-elevate">
+    <div className="group rounded-xl border bg-card/90 p-4 md:p-5 lift hover:border-primary/40 hover:shadow-elevate">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-muted-foreground">{label}</span>
-        <div className={`size-9 rounded-lg grid place-items-center ${toneClass[tone]}`}>
+        <div className={`size-10 rounded-xl grid place-items-center ring-1 ring-inset ring-current/10 ${toneClass[tone]}`}>
           <Icon className="size-5" />
         </div>
       </div>
