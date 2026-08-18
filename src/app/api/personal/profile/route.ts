@@ -6,7 +6,7 @@ import {
   json,
   errorResponse,
   AuthError,
-  validateCsrfToken,
+  assertCsrf,
   handleRouteError,
 } from '@/lib/auth'
 
@@ -14,9 +14,7 @@ import {
 export async function PUT(req: NextRequest) {
   try {
     const session = await requireRole('PERSONAL')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
-      throw new AuthError('Invalid or missing CSRF token', 403)
-    }
+    await assertCsrf(req)
     const body = await parseBody<{
       fullName?: string
       avatarUrl?: string | null

@@ -6,7 +6,7 @@ import {
   json,
   errorResponse,
   AuthError,
-  validateCsrfToken,
+  assertCsrf,
   handleRouteError,
 } from '@/lib/auth'
 
@@ -41,9 +41,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     await requireRole('ADMIN')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
-      throw new AuthError('Invalid or missing CSRF token', 403)
-    }
+    await assertCsrf(req)
     const body = await parseBody<{ name?: string; number?: number }>(req)
     const name = body.name?.trim()
     const number = Number(body.number)

@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
 import {
@@ -38,10 +39,13 @@ type Step =
   | 'role'
   | 'student-login'
   | 'student-register'
+  | 'student-otp'
   | 'teacher-login'
   | 'teacher-register'
+  | 'teacher-otp'
   | 'personal-login'
   | 'personal-register'
+  | 'personal-otp'
   | 'student-profile'
   | 'teacher-profile'
 
@@ -135,6 +139,13 @@ export function AuthModal() {
   const [studentProfile, setStudentProfile] =
     useState<StudentProfileForm>(emptyStudentProfile)
 
+  // OTP state
+  const [otp, setOtp] = useState('')
+  const [otpTicket, setOtpTicket] = useState('')
+  const [otpEmail, setOtpEmail] = useState('')
+  const [otpResendDisabled, setOtpResendDisabled] = useState(false)
+  const [otpResendCountdown, setOtpResendCountdown] = useState(0)
+
   useEffect(() => {
     if (open) {
       setErr(null)
@@ -166,6 +177,11 @@ export function AuthModal() {
     })
     setPersonal({ username: '', password: '', confirm: '', fullName: '' })
     setStudentProfile(emptyStudentProfile)
+    setOtp('')
+    setOtpTicket('')
+    setOtpEmail('')
+    setOtpResendDisabled(false)
+    setOtpResendCountdown(0)
   }
 
   const finishAuth = async () => {
@@ -209,6 +225,54 @@ export function AuthModal() {
         setErr('Passwords do not match')
         return
       }
+      // Send OTP first
+      const otpData = await apiFetch<{
+        ok: boolean
+        maskedEmail: string
+        expiresInSeconds: number
+        retryAfterSeconds: number
+      }>('/api/auth/otp/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: reg.email,
+          purpose: 'register-student',
+        }),
+      })
+      setOtpEmail(reg.email)
+      setStep('student-otp')
+      toast.success(`Verification code sent to ${otpData.maskedEmail}`)
+      // Start resend countdown
+      setOtpResendDisabled(true)
+      setOtpResendCountdown(otpData.retryAfterSeconds)
+      const countdown = setInterval(() => {
+        setOtpResendCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdown)
+            setOtpResendDisabled(false)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    })
+
+  const handleStudentOtpVerify = (e: React.FormEvent) =>
+    run(async () => {
+      e.preventDefault()
+      const verifyData = await apiFetch<{
+        ok: boolean
+        ticket: string
+        maskedEmail: string
+      }>('/api/auth/otp/verify', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: otpEmail,
+          purpose: 'register-student',
+          code: otp,
+        }),
+      })
+      setOtpTicket(verifyData.ticket)
+      // Now complete registration with the ticket
       const data = await apiFetch<{
         user: SessionUser
         csrfToken: string
@@ -220,6 +284,7 @@ export function AuthModal() {
           email: reg.email,
           password: reg.password,
           confirm: reg.confirm,
+          ticket: verifyData.ticket,
         }),
       })
       setUser(data.user)
@@ -227,6 +292,35 @@ export function AuthModal() {
       setStudentProfile((p) => ({ ...p, fullName: data.user.name }))
       setStep('student-profile')
       toast.success('Account created! Complete your profile to continue.')
+    })
+
+  const handleStudentOtpResend = () =>
+    run(async () => {
+      const otpData = await apiFetch<{
+        ok: boolean
+        maskedEmail: string
+        expiresInSeconds: number
+        retryAfterSeconds: number
+      }>('/api/auth/otp/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: otpEmail,
+          purpose: 'register-student',
+        }),
+      })
+      toast.success(`New code sent to ${otpData.maskedEmail}`)
+      setOtpResendDisabled(true)
+      setOtpResendCountdown(otpData.retryAfterSeconds)
+      const countdown = setInterval(() => {
+        setOtpResendCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdown)
+            setOtpResendDisabled(false)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
     })
 
   const handleGoogle = (role: 'STUDENT' | 'TEACHER') => {
@@ -269,13 +363,64 @@ export function AuthModal() {
         setErr('Passwords do not match')
         return
       }
+      // Send OTP first
+      const otpData = await apiFetch<{
+        ok: boolean
+        maskedEmail: string
+        expiresInSeconds: number
+        retryAfterSeconds: number
+      }>('/api/auth/otp/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: teacherReg.email,
+          purpose: 'register-teacher',
+        }),
+      })
+      setOtpEmail(teacherReg.email)
+      setStep('teacher-otp')
+      toast.success(`Verification code sent to ${otpData.maskedEmail}`)
+      // Start resend countdown
+      setOtpResendDisabled(true)
+      setOtpResendCountdown(otpData.retryAfterSeconds)
+      const countdown = setInterval(() => {
+        setOtpResendCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdown)
+            setOtpResendDisabled(false)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    })
+
+  const handleTeacherOtpVerify = (e: React.FormEvent) =>
+    run(async () => {
+      e.preventDefault()
+      const verifyData = await apiFetch<{
+        ok: boolean
+        ticket: string
+        maskedEmail: string
+      }>('/api/auth/otp/verify', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: otpEmail,
+          purpose: 'register-teacher',
+          code: otp,
+        }),
+      })
+      setOtpTicket(verifyData.ticket)
+      // Now complete registration with the ticket
       const data = await apiFetch<{
         user: SessionUser
         csrfToken: string
         needsProfile: boolean
       }>('/api/auth/register-teacher', {
         method: 'POST',
-        body: JSON.stringify(teacherReg),
+        body: JSON.stringify({
+          ...teacherReg,
+          ticket: verifyData.ticket,
+        }),
       })
       setUser(data.user)
       setCsrf(data.csrfToken)
@@ -291,6 +436,35 @@ export function AuthModal() {
         toast.success(`Welcome, ${data.user.name}!`)
         await finishAuth()
       }
+    })
+
+  const handleTeacherOtpResend = () =>
+    run(async () => {
+      const otpData = await apiFetch<{
+        ok: boolean
+        maskedEmail: string
+        expiresInSeconds: number
+        retryAfterSeconds: number
+      }>('/api/auth/otp/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: otpEmail,
+          purpose: 'register-teacher',
+        }),
+      })
+      toast.success(`New code sent to ${otpData.maskedEmail}`)
+      setOtpResendDisabled(true)
+      setOtpResendCountdown(otpData.retryAfterSeconds)
+      const countdown = setInterval(() => {
+        setOtpResendCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdown)
+            setOtpResendDisabled(false)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
     })
 
   const handleTeacherProfileSave = (e: React.FormEvent) =>
@@ -332,6 +506,54 @@ export function AuthModal() {
         setErr('Passwords do not match')
         return
       }
+      // Send OTP first
+      const otpData = await apiFetch<{
+        ok: boolean
+        maskedEmail: string
+        expiresInSeconds: number
+        retryAfterSeconds: number
+      }>('/api/auth/otp/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: personal.username,
+          purpose: 'register-personal',
+        }),
+      })
+      setOtpEmail(personal.username)
+      setStep('personal-otp')
+      toast.success(`Verification code sent to ${otpData.maskedEmail}`)
+      // Start resend countdown
+      setOtpResendDisabled(true)
+      setOtpResendCountdown(otpData.retryAfterSeconds)
+      const countdown = setInterval(() => {
+        setOtpResendCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdown)
+            setOtpResendDisabled(false)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    })
+
+  const handlePersonalOtpVerify = (e: React.FormEvent) =>
+    run(async () => {
+      e.preventDefault()
+      const verifyData = await apiFetch<{
+        ok: boolean
+        ticket: string
+        maskedEmail: string
+      }>('/api/auth/otp/verify', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: otpEmail,
+          purpose: 'register-personal',
+          code: otp,
+        }),
+      })
+      setOtpTicket(verifyData.ticket)
+      // Now complete registration with the ticket
       const data = await apiFetch<{ user: SessionUser; csrfToken: string }>(
         '/api/auth/register',
         {
@@ -341,6 +563,7 @@ export function AuthModal() {
             username: personal.username,
             password: personal.password,
             confirm: personal.confirm,
+            ticket: verifyData.ticket,
           }),
         }
       )
@@ -348,6 +571,35 @@ export function AuthModal() {
       setCsrf(data.csrfToken)
       toast.success(`Welcome, ${data.user.name}!`)
       await finishAuth()
+    })
+
+  const handlePersonalOtpResend = () =>
+    run(async () => {
+      const otpData = await apiFetch<{
+        ok: boolean
+        maskedEmail: string
+        expiresInSeconds: number
+        retryAfterSeconds: number
+      }>('/api/auth/otp/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: otpEmail,
+          purpose: 'register-personal',
+        }),
+      })
+      toast.success(`New code sent to ${otpData.maskedEmail}`)
+      setOtpResendDisabled(true)
+      setOtpResendCountdown(otpData.retryAfterSeconds)
+      const countdown = setInterval(() => {
+        setOtpResendCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdown)
+            setOtpResendDisabled(false)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
     })
 
   const header = useHeader(step, setStep)
@@ -485,6 +737,15 @@ export function AuthModal() {
           {/* ── STEP: STUDENT REGISTER ───────────────────────────────── */}
           {step === 'student-register' && (
             <form onSubmit={handleStudentRegister} className="space-y-4">
+              <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Password Requirements:</p>
+                <ul className="text-xs text-muted-foreground space-y-1">
+                  <li>• Minimum 12 characters</li>
+                  <li>• Uppercase & lowercase letters</li>
+                  <li>• At least one number</li>
+                  <li>• At least one special character</li>
+                </ul>
+              </div>
               <Field label="Full Name" htmlFor="student-reg-name">
                 <Input
                   id="student-reg-name"
@@ -534,7 +795,7 @@ export function AuthModal() {
               </div>
               <Button type="submit" className="w-full h-11" disabled={busy}>
                 {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <BookOpen className="size-4 mr-2" />}
-                Create Account
+                Send Verification Code
               </Button>
               <p className="text-center text-sm text-muted-foreground">
                 Already have an account?{' '}
@@ -546,6 +807,60 @@ export function AuthModal() {
                   Sign in
                 </button>
               </p>
+            </form>
+          )}
+
+          {/* ── STEP: STUDENT OTP ──────────────────────────────────── */}
+          {step === 'student-otp' && (
+            <form onSubmit={handleStudentOtpVerify} className="space-y-4">
+              <div className="text-center space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Enter the 6-digit code sent to your email
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {otpEmail.replace(/(.{2})(.*)(@.*)/, '$1***$3')}
+                </p>
+              </div>
+              <div className="flex justify-center">
+                <InputOTP
+                  value={otp}
+                  onChange={setOtp}
+                  maxLength={6}
+                  className="justify-center"
+                >
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} />
+                    <InputOTPSlot index={1} />
+                    <InputOTPSlot index={2} />
+                    <InputOTPSlot index={3} />
+                    <InputOTPSlot index={4} />
+                    <InputOTPSlot index={5} />
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
+              <Button type="submit" className="w-full h-11" disabled={busy || otp.length !== 6}>
+                {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <ShieldCheck className="size-4 mr-2" />}
+                Verify & Create Account
+              </Button>
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={handleStudentOtpResend}
+                  disabled={otpResendDisabled || busy}
+                  className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {otpResendDisabled
+                    ? `Resend code in ${otpResendCountdown}s`
+                    : "Didn't receive a code? Resend"}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStep('student-register')}
+                className="w-full text-sm text-muted-foreground hover:text-foreground"
+              >
+                ← Back to registration
+              </button>
             </form>
           )}
 
@@ -615,6 +930,15 @@ export function AuthModal() {
           {/* ── STEP: TEACHER REGISTER ───────────────────────────────── */}
           {step === 'teacher-register' && (
             <form onSubmit={handleTeacherRegister} className="space-y-4">
+              <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Password Requirements:</p>
+                <ul className="text-xs text-muted-foreground space-y-1">
+                  <li>• Minimum 12 characters</li>
+                  <li>• Uppercase & lowercase letters</li>
+                  <li>• At least one number</li>
+                  <li>• At least one special character</li>
+                </ul>
+              </div>
               <Field label="Full Name" htmlFor="teacher-reg-name">
                 <Input
                   id="teacher-reg-name"
@@ -694,7 +1018,7 @@ export function AuthModal() {
               </Field>
               <Button type="submit" className="w-full h-11" disabled={busy}>
                 {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Users className="size-4 mr-2" />}
-                Create Teacher Account
+                Send Verification Code
               </Button>
               <p className="text-center text-sm text-muted-foreground">
                 Already registered?{' '}
@@ -706,6 +1030,60 @@ export function AuthModal() {
                   Sign in
                 </button>
               </p>
+            </form>
+          )}
+
+          {/* ── STEP: TEACHER OTP ──────────────────────────────────── */}
+          {step === 'teacher-otp' && (
+            <form onSubmit={handleTeacherOtpVerify} className="space-y-4">
+              <div className="text-center space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Enter the 6-digit code sent to your email
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {otpEmail.replace(/(.{2})(.*)(@.*)/, '$1***$3')}
+                </p>
+              </div>
+              <div className="flex justify-center">
+                <InputOTP
+                  value={otp}
+                  onChange={setOtp}
+                  maxLength={6}
+                  className="justify-center"
+                >
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} />
+                    <InputOTPSlot index={1} />
+                    <InputOTPSlot index={2} />
+                    <InputOTPSlot index={3} />
+                    <InputOTPSlot index={4} />
+                    <InputOTPSlot index={5} />
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
+              <Button type="submit" className="w-full h-11" disabled={busy || otp.length !== 6}>
+                {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <ShieldCheck className="size-4 mr-2" />}
+                Verify & Create Account
+              </Button>
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={handleTeacherOtpResend}
+                  disabled={otpResendDisabled || busy}
+                  className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {otpResendDisabled
+                    ? `Resend code in ${otpResendCountdown}s`
+                    : "Didn't receive a code? Resend"}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStep('teacher-register')}
+                className="w-full text-sm text-muted-foreground hover:text-foreground"
+              >
+                ← Back to registration
+              </button>
             </form>
           )}
 
@@ -757,6 +1135,15 @@ export function AuthModal() {
 
           {step === 'personal-register' && (
             <form onSubmit={handlePersonalRegister} className="space-y-4">
+              <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Password Requirements:</p>
+                <ul className="text-xs text-muted-foreground space-y-1">
+                  <li>• Minimum 12 characters</li>
+                  <li>• Uppercase & lowercase letters</li>
+                  <li>• At least one number</li>
+                  <li>• At least one special character</li>
+                </ul>
+              </div>
               <Field label="Full Name" htmlFor="personal-reg-name">
                 <Input
                   id="personal-reg-name"
@@ -769,14 +1156,16 @@ export function AuthModal() {
                   required
                 />
               </Field>
-              <Field label="Username" htmlFor="personal-reg-username">
+              <Field label="Username (Email)" htmlFor="personal-reg-username">
                 <Input
                   id="personal-reg-username"
                   autoComplete="username"
+                  type="email"
                   value={personal.username}
                   onChange={(e) =>
                     setPersonal((p) => ({ ...p, username: e.target.value }))
                   }
+                  placeholder="your.email@example.com"
                   className="h-11"
                   required
                 />
@@ -811,7 +1200,7 @@ export function AuthModal() {
               </div>
               <Button type="submit" className="w-full h-11" disabled={busy}>
                 {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <BookOpen className="size-4 mr-2" />}
-                Create Account
+                Send Verification Code
               </Button>
               <p className="text-center text-sm text-muted-foreground">
                 Already have an account?{' '}
@@ -823,6 +1212,60 @@ export function AuthModal() {
                   Sign in
                 </button>
               </p>
+            </form>
+          )}
+
+          {/* ── STEP: PERSONAL OTP ─────────────────────────────────── */}
+          {step === 'personal-otp' && (
+            <form onSubmit={handlePersonalOtpVerify} className="space-y-4">
+              <div className="text-center space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Enter the 6-digit code sent to your email
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {otpEmail.replace(/(.{2})(.*)(@.*)/, '$1***$3')}
+                </p>
+              </div>
+              <div className="flex justify-center">
+                <InputOTP
+                  value={otp}
+                  onChange={setOtp}
+                  maxLength={6}
+                  className="justify-center"
+                >
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} />
+                    <InputOTPSlot index={1} />
+                    <InputOTPSlot index={2} />
+                    <InputOTPSlot index={3} />
+                    <InputOTPSlot index={4} />
+                    <InputOTPSlot index={5} />
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
+              <Button type="submit" className="w-full h-11" disabled={busy || otp.length !== 6}>
+                {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <ShieldCheck className="size-4 mr-2" />}
+                Verify & Create Account
+              </Button>
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={handlePersonalOtpResend}
+                  disabled={otpResendDisabled || busy}
+                  className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {otpResendDisabled
+                    ? `Resend code in ${otpResendCountdown}s`
+                    : "Didn't receive a code? Resend"}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStep('personal-register')}
+                className="w-full text-sm text-muted-foreground hover:text-foreground"
+              >
+                ← Back to registration
+              </button>
             </form>
           )}
 
@@ -1151,6 +1594,12 @@ function useHeader(step: Step, _setStep: (s: Step) => void): {
         subtitle: 'Register to track your attendance and join classrooms.',
         isRole: false,
       }
+    case 'student-otp':
+      return {
+        title: 'Verify Your Email',
+        subtitle: 'Enter the verification code sent to your email address.',
+        isRole: false,
+      }
     case 'teacher-login':
       return {
         title: 'Teacher Sign In',
@@ -1163,6 +1612,12 @@ function useHeader(step: Step, _setStep: (s: Step) => void): {
         subtitle: 'Register to create classrooms and manage your students.',
         isRole: false,
       }
+    case 'teacher-otp':
+      return {
+        title: 'Verify Your Email',
+        subtitle: 'Enter the verification code sent to your email address.',
+        isRole: false,
+      }
     case 'personal-login':
       return {
         title: 'Personal Tracker Sign In',
@@ -1173,6 +1628,12 @@ function useHeader(step: Step, _setStep: (s: Step) => void): {
       return {
         title: 'Create Personal Tracker',
         subtitle: 'Build your own independent attendance tracker.',
+        isRole: false,
+      }
+    case 'personal-otp':
+      return {
+        title: 'Verify Your Email',
+        subtitle: 'Enter the verification code sent to your email address.',
         isRole: false,
       }
     case 'student-profile':

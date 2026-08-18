@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteError, validateCsrfToken } from '@/lib/auth'
+import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteError, assertCsrf } from '@/lib/auth'
 
 async function owned(id: string, teacherId: string) {
   return db.classroom.findFirst({ where: { id, teacherId }, include: { subject: true, semester: { select: { id: true, name: true } }, members: { include: { student: { include: { user: { select: { email: true } } } } } }, schedules: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } } })
@@ -21,7 +21,7 @@ export async function GET(_req: NextRequest, context: RouteContext<'/api/classro
 export async function DELETE(req: NextRequest, context: RouteContext<'/api/classrooms/[id]'>) {
   try {
     const session = await requireRole('TEACHER')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) throw new AuthError('Invalid or missing CSRF token', 403)
+    await assertCsrf(req)
     const { id } = await context.params
     const result = await db.classroom.deleteMany({ where: { id, teacherId: session.teacherId! } })
     if (!result.count) return errorResponse('Classroom not found', 404)
@@ -32,7 +32,7 @@ export async function DELETE(req: NextRequest, context: RouteContext<'/api/class
 export async function PATCH(req: NextRequest, context: RouteContext<'/api/classrooms/[id]'>) {
   try {
     const session = await requireRole('TEACHER')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) throw new AuthError('Invalid or missing CSRF token', 403)
+    await assertCsrf(req)
     const { id } = await context.params
     const body = await parseBody<{ name?: string; room?: string; academicYear?: string; year?: number | string; durationYears?: number | string }>(req)
     const year = body.year == null || body.year === '' ? undefined : Number(body.year)

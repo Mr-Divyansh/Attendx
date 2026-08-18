@@ -8,8 +8,11 @@ import {
   json,
   errorResponse,
   AuthError,
-  validateCsrfToken,
+  assertCsrf,
 } from '@/lib/auth'
+import { rateLimit, RULES } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/authz'
+import { validatePasswordPolicy } from '@/lib/security'
 
 // POST /api/auth/change-password — college users (STUDENT / TEACHER / ADMIN).
 //
@@ -23,21 +26,25 @@ import {
 // plaintext, and never accepted from the client in any other way.
 export async function POST(req: NextRequest) {
   try {
+    await assertCsrf(req)
     const session = await getSession()
     if (!session || session.role === 'PERSONAL') {
       throw new AuthError('Not signed in', 401)
     }
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
-      throw new AuthError('Invalid or missing CSRF token', 403)
-    }
+
+    await rateLimit({
+      ip: getClientIp(req),
+      identifier: `change-password:${session.id}`,
+      rule: RULES.changePassword,
+    })
 
     const { currentPassword, newPassword } = await parseBody<{
       currentPassword?: string
       newPassword?: string
     }>(req)
 
-    if (!newPassword || newPassword.length < 8) {
-      return errorResponse('New password must be at least 8 characters', 400)
+    if (!newPassword) {
+      return errorResponse('New password is required', 400)
     }
 
     const user = await db.user.findUnique({ where: { id: session.id } })
@@ -49,6 +56,14 @@ export async function POST(req: NextRequest) {
       if (!currentPassword || !verifyPassword(currentPassword, user.passwordHash)) {
         return errorResponse('Current password is incorrect', 401)
       }
+    }
+
+    const policy = validatePasswordPolicy(newPassword, {
+      email: user.email,
+      name: user.email,
+    })
+    if (!policy.ok) {
+      return errorResponse(policy.reason, 400)
     }
 
     await db.user.update({

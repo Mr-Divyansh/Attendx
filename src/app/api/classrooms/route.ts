@@ -1,14 +1,16 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError, validateCsrfToken, handleRouteError } from '@/lib/auth'
-import { makeClassroomPublicId } from '@/lib/oauth'
+import { requireRole, parseBody, json, errorResponse, AuthError, assertCsrf, handleRouteError } from '@/lib/auth'
+import { makeClassroomPublicId, secureCode } from '@/lib/oauth'
 
 function makeJoinCode() {
-  return Math.random().toString(36).slice(2, 8).toUpperCase()
+  // 6 chars from 32-char alphabet = 30 bits; secureCode uses CSPRNG.
+  return secureCode(6)
 }
 
 function makeInviteToken() {
-  return Math.random().toString(36).slice(2, 10).toUpperCase()
+  // 12 chars from 32-char alphabet = 60 bits of entropy.
+  return secureCode(12)
 }
 
 export async function GET() {
@@ -116,9 +118,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('TEACHER')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
-      throw new AuthError('Invalid or missing CSRF token', 403)
-    }
+    await assertCsrf(req)
     if (!session.teacherId) return errorResponse('Teacher profile missing', 403)
 
     const body = await parseBody<{

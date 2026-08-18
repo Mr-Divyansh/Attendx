@@ -6,15 +6,13 @@ import {
   json,
   errorResponse,
   AuthError,
-  validateCsrfToken,
+  assertCsrf,
 } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('TEACHER')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
-      throw new AuthError('Invalid or missing CSRF token', 403)
-    }
+    await assertCsrf(req)
     if (!session.teacherId) return errorResponse('Teacher profile missing', 403)
 
     const body = await parseBody<{ memberId?: string; action?: 'approve' | 'reject' }>(req)

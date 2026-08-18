@@ -1,14 +1,20 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError, validateCsrfToken } from '@/lib/auth'
+import { requireRole, parseBody, json, errorResponse, AuthError, assertCsrf } from '@/lib/auth'
+import { getClientIp } from '@/lib/authz'
+import { rateLimit, RULES } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('STUDENT')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
-      throw new AuthError('Invalid or missing CSRF token', 403)
-    }
+    await assertCsrf(req)
     if (!session.studentId) return errorResponse('Student profile missing', 403)
+
+    await rateLimit({
+      ip: getClientIp(req),
+      identifier: `join-classroom:${session.studentId}`,
+      rule: RULES.joinClassroom,
+    })
 
     const body = await parseBody<{ joinCode?: string; inviteToken?: string }>(req)
     const joinCode = body.joinCode?.trim().toUpperCase()

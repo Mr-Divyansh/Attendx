@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { errorResponse, handleRouteError, json } from '@/lib/auth'
+import { errorResponse, handleRouteError, json, assertCsrf } from '@/lib/auth'
+import { rateLimit, RULES } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/authz'
 
 const contactSchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -10,8 +12,16 @@ const contactSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    await assertCsrf(req)
+
     const accessKey = process.env.WEB3FORMS_ACCESS_KEY?.trim()
     if (!accessKey) return errorResponse('Contact form is temporarily unavailable. Please try again later.', 503)
+
+    await rateLimit({
+      ip: getClientIp(req),
+      identifier: 'contact',
+      rule: RULES.contact,
+    })
 
     const data = contactSchema.safeParse(await req.json())
     if (!data.success) return errorResponse('Please provide a valid name, email, and message.', 400)

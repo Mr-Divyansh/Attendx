@@ -7,13 +7,21 @@ import {
   json,
   errorResponse,
   issueCsrfToken,
-  checkRateLimit,
-  AuthError,
+  assertCsrf,
   handleRouteError,
 } from '@/lib/auth'
+import { rateLimit, RULES } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/authz'
+import { validatePasswordPolicy } from '@/lib/security'
+import { consumeVerificationTicket } from '@/lib/otp'
 
+// POST /api/auth/register-teacher — teacher email/password registration.
+// Role is assigned server-side. Requires an OTP verification ticket
+// (purpose 'register-teacher'); the ticket's email is authoritative.
 export async function POST(req: NextRequest) {
   try {
+    await assertCsrf(req)
+
     const body = await parseBody<{
       fullName?: string
       email?: string
@@ -22,25 +30,29 @@ export async function POST(req: NextRequest) {
       subjectTaught?: string
       institutionName?: string
       departmentLabel?: string
+      ticket?: string
     }>(req)
 
-    const { fullName, email, password, confirm, subjectTaught, institutionName, departmentLabel } =
+    const { fullName, password, confirm, subjectTaught, institutionName, departmentLabel } =
       body
 
-    if (!fullName?.trim() || !email?.trim() || !password || !confirm) {
+    if (!fullName?.trim() || !password || !confirm) {
       return errorResponse('Name, email, and password are required', 400)
     }
     if (password !== confirm) {
       return errorResponse('Passwords do not match', 400)
     }
-    if (password.length < 8) {
-      return errorResponse('Password must be at least 8 characters', 400)
-    }
 
-    const ip = req.headers.get('x-forwarded-for') || 'unknown'
-    const normalizedEmail = email.toLowerCase().trim()
-    if (!checkRateLimit(`register-teacher:${ip}:${normalizedEmail}`)) {
-      return errorResponse('Too many attempts. Please try again shortly.', 429)
+    const ip = getClientIp(req)
+    await rateLimit({ ip, identifier: `register-teacher:${ip}`, rule: RULES.register })
+
+    // Email must be OTP-verified first; the ticket's email is authoritative.
+    const verified = consumeVerificationTicket(body.ticket, 'register-teacher')
+    const normalizedEmail = verified.email
+
+    const policy = validatePasswordPolicy(password, { email: normalizedEmail, name: fullName })
+    if (!policy.ok) {
+      return errorResponse(policy.reason, 400)
     }
 
     const existing = await db.user.findUnique({ where: { email: normalizedEmail } })
@@ -53,6 +65,7 @@ export async function POST(req: NextRequest) {
         email: normalizedEmail,
         passwordHash: hashPassword(password),
         role: 'TEACHER',
+        emailVerified: true,
         teacher: {
           create: {
             fullName: fullName.trim(),

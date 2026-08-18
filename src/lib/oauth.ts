@@ -77,10 +77,10 @@ export function getGoogleOAuthConfig(req: NextRequest): OAuthConfig {
 
 function getOAuthSecret(): string {
   const secret = trim(process.env.ATTENDX_SECRET)
-  if (process.env.NODE_ENV === 'production' && !secret) {
+  if (!secret || secret.length < 32) {
     throw new OAuthConfigurationError('missing_credentials')
   }
-  return secret || 'attendx-dev-secret-change-me'
+  return secret
 }
 
 export function signOAuthState(payload: { role: 'STUDENT' | 'TEACHER'; nonce: string }): string {
@@ -155,12 +155,22 @@ export async function exchangeGoogleCode(code: string, config: OAuthConfig): Pro
   }
 }
 
+/** Cryptographically-secure random uppercase code (no ambiguous chars). */
+export function secureCode(length: number): string {
+  const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const bytes = crypto.randomBytes(length)
+  let out = ''
+  for (let i = 0; i < length; i++) out += charset[bytes[i] % charset.length]
+  return out
+}
+
 export function makeClassroomPublicId(name: string): string {
   const slug = name
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 12)
     .toUpperCase()
-  const suffix = Math.floor(1000 + Math.random() * 9000)
+  // 20 chars ~ 105 bits of entropy — not guessable.
+  const suffix = secureCode(20)
   return `CHITA-${slug || 'CLASS'}-${suffix}`
 }

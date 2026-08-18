@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteError, validateCsrfToken } from '@/lib/auth'
+import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteError, assertCsrf } from '@/lib/auth'
 
 const DAYS = new Set(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
 const DAY_ALIASES: Record<string, string> = { Monday: 'Mon', Tuesday: 'Tue', Wednesday: 'Wed', Thursday: 'Thu', Friday: 'Fri', Saturday: 'Sat', Sunday: 'Sun' }
@@ -17,7 +17,7 @@ function normaliseTime(value?: string) {
 export async function POST(req: NextRequest, context: RouteContext<'/api/classrooms/[id]/schedule'>) {
   try {
     const session = await requireRole('TEACHER')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) throw new AuthError('Invalid or missing CSRF token', 403)
+    await assertCsrf(req)
     const { id } = await context.params
     const classroom = await db.classroom.findFirst({ where: { id, teacherId: session.teacherId! } })
     if (!classroom) return errorResponse('Classroom not found', 404)
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, context: RouteContext<'/api/classro
 export async function DELETE(req: NextRequest, context: RouteContext<'/api/classrooms/[id]/schedule'>) {
   try {
     const session = await requireRole('TEACHER')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) throw new AuthError('Invalid or missing CSRF token', 403)
+    await assertCsrf(req)
     const { id } = await context.params
     const scheduleId = req.nextUrl.searchParams.get('scheduleId')
     if (!scheduleId) return errorResponse('Schedule id is required', 400)

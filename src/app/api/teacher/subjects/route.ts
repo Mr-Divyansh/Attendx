@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteError, validateCsrfToken } from '@/lib/auth'
+import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteError, assertCsrf } from '@/lib/auth'
 
 type SubjectOption = { id: string; code: string; name: string }
 
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('TEACHER')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) throw new AuthError('Invalid or missing CSRF token', 403)
+    await assertCsrf(req)
     const { name, sectionId } = await parseBody<{ name?: string; sectionId?: string }>(req)
     if (!name?.trim() || !sectionId) return errorResponse('Subject name and section are required', 400)
     const section = await db.section.findFirst({ where: { id: sectionId, teacherId: session.teacherId! } })
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const session = await requireRole('TEACHER')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) throw new AuthError('Invalid or missing CSRF token', 403)
+    await assertCsrf(req)
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return errorResponse('Subject id is required', 400)
     const result = await db.subject.deleteMany({ where: { id, teacherId: session.teacherId! } })

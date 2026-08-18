@@ -7,7 +7,7 @@ import {
   errorResponse,
   hashPassword,
   AuthError,
-  validateCsrfToken,
+  assertCsrf,
   handleRouteError,
 } from '@/lib/auth'
 
@@ -18,9 +18,7 @@ export async function PUT(
 ) {
   try {
     await requireRole('ADMIN')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
-      throw new AuthError('Invalid or missing CSRF token', 403)
-    }
+    await assertCsrf(req)
     const { id } = await params
     const body = await parseBody<{
       fullName?: string
@@ -91,9 +89,7 @@ export async function DELETE(
 ) {
   try {
     await requireRole('ADMIN')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
-      throw new AuthError('Invalid or missing CSRF token', 403)
-    }
+    await assertCsrf(req)
     const { id } = await params
     const teacher = await db.teacher.findUnique({ where: { id } })
     if (!teacher) return errorResponse('Teacher not found', 404)

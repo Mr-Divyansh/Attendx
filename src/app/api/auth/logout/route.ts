@@ -3,15 +3,13 @@ import {
   json,
   errorResponse,
   handleRouteError,
-  validateCsrfToken,
+  assertCsrf,
 } from '@/lib/auth'
 
 // POST /api/auth/logout — destroy session
 export async function POST(req: Request) {
   try {
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
-      return errorResponse('Invalid or missing CSRF token', 403)
-    }
+    await assertCsrf(req)
     await destroySession()
     return json({ ok: true })
 

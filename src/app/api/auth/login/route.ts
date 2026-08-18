@@ -7,13 +7,18 @@ import {
   json,
   errorResponse,
   issueCsrfToken,
-  checkRateLimit,
+  assertCsrf,
+  AuthError,
   handleRouteError,
 } from '@/lib/auth'
+import { rateLimit, RULES } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/authz'
 
 // POST /api/auth/login — college login (email + password + role)
 export async function POST(req: NextRequest) {
   try {
+    await assertCsrf(req)
+
     const { email, password, role } = await parseBody<{
       email?: string
       password?: string
@@ -24,32 +29,33 @@ export async function POST(req: NextRequest) {
       return errorResponse('Email, password and role are required', 400)
     }
 
-    const ip = req.headers.get('x-forwarded-for') || 'unknown'
-    if (!checkRateLimit(`login:${ip}:${email.toLowerCase()}`)) {
-      return errorResponse('Too many login attempts. Please try again in a few minutes.', 429)
-    }
+    const ip = getClientIp(req)
+    await rateLimit({
+      ip,
+      identifier: `login:${email.toLowerCase()}`,
+      rule: RULES.login,
+    })
 
     const user = await db.user.findUnique({
       where: { email: email.toLowerCase().trim() },
       include: { admin: true, teacher: true, student: true },
     })
 
-    if (!user || user.role !== role) {
-      return errorResponse('Invalid credentials for the selected role', 401)
-    }
-
-    if (user.disabled) {
-      return errorResponse('This account has been disabled', 403)
-    }
-
-    if (!user.passwordHash || !verifyPassword(password, user.passwordHash)) {
+    // Single generic message for every failure mode — never reveal whether
+    // the email exists, the role matches, the account is disabled, or the
+    // profile is incomplete. User enumeration is a state leak.
+    if (
+      !user ||
+      user.role !== role ||
+      user.disabled ||
+      !user.passwordHash ||
+      !verifyPassword(password, user.passwordHash) ||
+      (role === 'ADMIN' && !user.admin) ||
+      (role === 'TEACHER' && !user.teacher) ||
+      (role === 'STUDENT' && !user.student)
+    ) {
       return errorResponse('Invalid credentials', 401)
     }
-
-    // Ensure the role-specific profile exists
-    if (role === 'ADMIN' && !user.admin) return errorResponse('Admin profile missing', 403)
-    if (role === 'TEACHER' && !user.teacher) return errorResponse('Teacher profile missing', 403)
-    if (role === 'STUDENT' && !user.student) return errorResponse('Student profile missing', 403)
 
     // regenerate session id on login (cookie rotation handled by createCollegeSession)
     await createCollegeSession({ id: user.id, email: user.email, role: user.role })
@@ -75,6 +81,7 @@ export async function POST(req: NextRequest) {
       csrfToken: csrf,
     })
   } catch (e) {
+    if (e instanceof AuthError && e.status === 429) return errorResponse(e.message, 429)
     return handleRouteError(e, 'auth/login')
   }
 }

@@ -1,14 +1,16 @@
 import { cookies } from 'next/headers'
 import { db } from './db'
 import crypto from 'crypto'
+import { safeEqual } from './security'
 
 // ───────────────────────────────────────────────────────────
-// AttendX — Auth library (session/cookie based, bcrypt-hashed)
+// AttendX — Auth library (session/cookie based, scrypt-hashed)
 // Mirrors PHP session + role-based access control from the spec.
 // ───────────────────────────────────────────────────────────
 
 const SESSION_COOKIE = 'attendx_session'
 const SESSION_TTL = 60 * 60 * 24 * 7 // 7 days
+const MIN_SECRET_LENGTH = 32
 
 export type SessionUser = {
   id: string
@@ -37,26 +39,33 @@ type SessionPayload = {
 }
 
 export class ConfigurationError extends Error {
-  constructor(readonly code: 'missing_session_secret') {
+  constructor(readonly code: 'missing_session_secret' | 'weak_session_secret') {
     super(code)
   }
 }
 
+/**
+ * Resolve the session-signing secret. There is NO hard-coded fallback:
+ * a missing or short secret is a hard configuration error in every
+ * environment — silently running with a weak key would let anyone forge
+ * session cookies.
+ */
 function getSecret(): string {
   const secret = process.env.ATTENDX_SECRET?.trim()
-  if (process.env.NODE_ENV === 'production' && !secret) {
+  if (!secret) {
     throw new ConfigurationError('missing_session_secret')
-    /*
-      'ATTENDX_SECRET environment variable is not set. Set it in your hosting provider\'s ' +
-        'environment variables (Netlify: Site settings → Environment variables) to a long ' +
-        'random string before deploying to production.'
   }
-  */
+  if (secret.length < MIN_SECRET_LENGTH) {
+    throw new ConfigurationError('weak_session_secret')
   }
-  return secret || 'attendx-dev-secret-change-me'
+  return secret
 }
 
-/** Preflight signing configuration before routes write account data. */
+/**
+ * Preflight signing configuration before routes write account data.
+ * Called at server startup via instrumentation.ts so misconfigured
+ * production deploys refuse to boot instead of serving forged sessions.
+ */
 export function assertSessionConfiguration(): void {
   getSecret()
 }
@@ -75,7 +84,8 @@ function encodePayload(payload: Omit<SessionPayload, 'sig'>): string {
 function decodePayload(token: string): Omit<SessionPayload, 'sig'> | null {
   const [b64, sig] = token.split('.')
   if (!b64 || !sig) return null
-  if (sign(b64) !== sig) return null // tampered
+  // Timing-safe comparison — the token signature is attacker-controlled.
+  if (!safeEqual(sign(b64), sig)) return null // tampered
   try {
     const json = Buffer.from(b64, 'base64url').toString('utf8')
     const payload = JSON.parse(json) as SessionPayload
@@ -102,7 +112,7 @@ export async function createCollegeSession(user: {
   const store = await cookies()
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: 'strict',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: SESSION_TTL,
@@ -120,7 +130,7 @@ export async function createPersonalSession(user: { id: string }) {
   const store = await cookies()
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: 'strict',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: SESSION_TTL,
@@ -199,8 +209,7 @@ export class AuthError extends Error {
   }
 }
 
-// ── Password hashing (bcrypt-equivalent via node's scrypt + salt) ──
-// We use scrypt (available in Node 18+) as a bcrypt stand-in for hashing.
+// ── Password hashing (node's scrypt + random salt) ──
 export function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString('hex')
   const hash = crypto.scryptSync(password, salt, 64).toString('hex')
@@ -213,7 +222,7 @@ export function verifyPassword(password: string, stored: string): boolean {
   const salt = parts[1]
   const hash = parts[2]
   const test = crypto.scryptSync(password, salt, 64).toString('hex')
-  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(test, 'hex'))
+  return safeEqual(hash, test)
 }
 
 // ── CSRF token (per-session, validated on POST mutations) ──
@@ -224,7 +233,7 @@ export async function issueCsrfToken(): Promise<string> {
   const store = await cookies()
   store.set(CSRF_COOKIE, token, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: 'strict',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: SESSION_TTL,
@@ -247,25 +256,16 @@ export async function validateCsrfToken(headerToken?: string): Promise<boolean> 
   }
 }
 
-// ── Basic rate limiting for auth endpoints (login/register) ──
-// This is a simple in-memory limiter: 10 attempts per key per 10 minutes. It resets
-// on server restart / cold start, so it's not bulletproof on serverless, but it stops
-// casual scripted brute-forcing of passwords, which the app had zero protection
-// against before this.
-const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000
-const RATE_LIMIT_MAX = 10
-const attempts = new Map<string, { count: number; resetAt: number }>()
-
-export function checkRateLimit(key: string): boolean {
-  const now = Date.now()
-  const entry = attempts.get(key)
-  if (!entry || now > entry.resetAt) {
-    attempts.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
-    return true
+/**
+ * Require a valid CSRF token on a mutation request. Throws 403 when the
+ * x-csrf-token header does not match the signed session cookie.
+ */
+export async function assertCsrf(req: Request): Promise<void> {
+  const header = req.headers.get('x-csrf-token') || undefined
+  const ok = await validateCsrfToken(header)
+  if (!ok) {
+    throw new AuthError('Invalid or missing CSRF token. Refresh the page and try again.', 403)
   }
-  if (entry.count >= RATE_LIMIT_MAX) return false
-  entry.count += 1
-  return true
 }
 
 /** Helper for API routes: parse JSON body safely. */
@@ -277,12 +277,11 @@ export async function parseBody<T = unknown>(req: Request): Promise<T> {
   }
 }
 
-/** Standard JSON response helper. */
+/** Error response helper. */
 export function json(data: unknown, status = 200) {
   return Response.json(data, { status })
 }
 
-/** Error response helper. */
 export function errorResponse(message: string, status = 400) {
   return Response.json({ error: message }, { status })
 }
@@ -290,17 +289,9 @@ export function errorResponse(message: string, status = 400) {
 /**
  * Map an unexpected thrown error (typically a Prisma/DB failure) to a safe,
  * user-facing JSON error, and log the full details server-side.
- *
- * Without this, an unhandled exception in a route makes Next.js return a bare
- * 500 with no JSON body, and clients show the generic "Request failed (500)".
  */
 export function handleRouteError(e: unknown, context: string): Response {
-  const message = e instanceof Error ? e.message : String(e)
-
   // Our own AuthError (401/403/429/400 …) must keep its real status + message.
-  // Previously these fell through to the generic 500 below, which is why the
-  // login UI showed "Request failed (500)" for auth failures (e.g. wrong
-  // password, missing CSRF token, account disabled) instead of the true error.
   if (e instanceof AuthError) {
     return errorResponse(e.message, e.status)
   }
@@ -310,33 +301,37 @@ export function handleRouteError(e: unknown, context: string): Response {
     return errorResponse('Authentication is temporarily unavailable. Please try again later.', 503)
   }
 
-  // Prisma errors carry a `.code` (e.g. "P1001") separately from `.message`,
-  // and the code isn't always present in the message text — check both.
+  // Prisma errors carry a `.code` (e.g. "P1001") separately from `.message`.
   const code = (e as { code?: string } | null)?.code || ''
   console.error(`[${context}] error:`, e)
 
   // Prisma P1000/P1001/P1003 — cannot reach / authenticate with the database
-  if (code === 'P1001' || code === 'P1003' || message.includes('P1001') || message.includes('P1003')) {
+  if (code === 'P1001' || code === 'P1003' || messageIncludes(e, 'P1001') || messageIncludes(e, 'P1003')) {
     return errorResponse(
       'Database is unreachable. Check the DATABASE_URL and that the database server is running.',
       503
     )
   }
   // Prisma P1000 — generic connection error
-  if (code === 'P1000' || message.includes('P1000')) {
+  if (code === 'P1000' || messageIncludes(e, 'P1000')) {
     return errorResponse('Database connection failed. Please try again in a few minutes.', 503)
   }
   // Prisma P2021 — table or column does not exist (schema not pushed)
-  if (code === 'P2021' || code === 'P2022' || message.includes('P2021') || message.includes('P2022')) {
+  if (code === 'P2021' || code === 'P2022' || messageIncludes(e, 'P2021') || messageIncludes(e, 'P2022')) {
     return errorResponse(
       'Database schema is out of date. The administrator needs to run `npx prisma db push` and redeploy.',
       503
     )
   }
   // Prisma P2002 — unique constraint violation
-  if (code === 'P2002' || message.includes('P2002')) {
+  if (code === 'P2002' || messageIncludes(e, 'P2002')) {
     return errorResponse('A record with this value already exists.', 409)
   }
 
+  // Never leak raw stack traces or driver messages to the client.
   return errorResponse('An unexpected error occurred. Please try again later.', 500)
+}
+
+function messageIncludes(e: unknown, fragment: string): boolean {
+  return e instanceof Error && e.message.includes(fragment)
 }

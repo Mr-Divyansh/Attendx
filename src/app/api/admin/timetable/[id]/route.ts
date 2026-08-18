@@ -5,7 +5,7 @@ import {
   json,
   errorResponse,
   AuthError,
-  validateCsrfToken,
+  assertCsrf,
   handleRouteError,
 } from '@/lib/auth'
 
@@ -16,9 +16,7 @@ export async function DELETE(
 ) {
   try {
     await requireRole('ADMIN')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
-      throw new AuthError('Invalid or missing CSRF token', 403)
-    }
+    await assertCsrf(req)
     const { id } = await params
     await db.timetable.delete({ where: { id } })
     return json({ ok: true })

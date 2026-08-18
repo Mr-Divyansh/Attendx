@@ -6,7 +6,7 @@ import {
   errorResponse,
   AuthError,
   destroySession,
-  validateCsrfToken,
+  assertCsrf,
   handleRouteError,
 } from '@/lib/auth'
 
@@ -14,9 +14,7 @@ import {
 export async function DELETE(req: NextRequest) {
   try {
     const session = await requireRole('PERSONAL')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
-      throw new AuthError('Invalid or missing CSRF token', 403)
-    }
+    await assertCsrf(req)
     await db.personalUser.delete({ where: { id: session.id } })
     await destroySession()
     return json({ ok: true })

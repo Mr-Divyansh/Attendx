@@ -5,7 +5,7 @@ import {
   json,
   errorResponse,
   AuthError,
-  validateCsrfToken,
+  assertCsrf,
   handleRouteError,
 } from '@/lib/auth'
 
@@ -15,9 +15,7 @@ type Ctx = { params: Promise<{ id: string }> }
 export async function DELETE(req: NextRequest, ctx: Ctx) {
   try {
     const session = await requireRole('PERSONAL')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
-      throw new AuthError('Invalid or missing CSRF token', 403)
-    }
+    await assertCsrf(req)
     const { id } = await ctx.params
 
     const existing = await db.personalAttendance.findUnique({ where: { id } })

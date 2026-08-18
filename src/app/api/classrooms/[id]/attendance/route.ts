@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteError, validateCsrfToken } from '@/lib/auth'
+import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteError, assertCsrf } from '@/lib/auth'
 
 function sessionPeriod(startTime: string) { return Number(startTime.slice(0, 2)) * 60 + Number(startTime.slice(3, 5)) }
 
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, context: RouteContext<'/api/classroo
 export async function POST(req: NextRequest, context: RouteContext<'/api/classrooms/[id]/attendance'>) {
   try {
     const session = await requireRole('TEACHER')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) throw new AuthError('Invalid or missing CSRF token', 403)
+    await assertCsrf(req)
     const { id } = await context.params
     const classroom = await db.classroom.findFirst({ where: { id, teacherId: session.teacherId! } })
     if (!classroom) return errorResponse('Classroom not found', 404)

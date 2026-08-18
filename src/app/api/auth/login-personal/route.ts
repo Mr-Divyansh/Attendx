@@ -7,13 +7,17 @@ import {
   json,
   errorResponse,
   issueCsrfToken,
-  checkRateLimit,
+  assertCsrf,
   handleRouteError,
 } from '@/lib/auth'
+import { rateLimit, RULES } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/authz'
 
 // POST /api/auth/login-personal — personal-mode login (username + password)
 export async function POST(req: NextRequest) {
   try {
+    await assertCsrf(req)
+
     const { username, password } = await parseBody<{
       username?: string
       password?: string
@@ -23,10 +27,12 @@ export async function POST(req: NextRequest) {
       return errorResponse('Username and password are required', 400)
     }
 
-    const ip = req.headers.get('x-forwarded-for') || 'unknown'
-    if (!checkRateLimit(`login-personal:${ip}:${username.toLowerCase()}`)) {
-      return errorResponse('Too many login attempts. Please try again in a few minutes.', 429)
-    }
+    const ip = getClientIp(req)
+    await rateLimit({
+      ip,
+      identifier: `login-personal:${username.toLowerCase()}`,
+      rule: RULES.login,
+    })
 
     const pu = await db.personalUser.findUnique({
       where: { username: username.toLowerCase().trim() },

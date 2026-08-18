@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteError, validateCsrfToken } from '@/lib/auth'
+import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteError, assertCsrf } from '@/lib/auth'
 
 export async function GET(req: NextRequest) {
   try {
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('TEACHER')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) throw new AuthError('Invalid or missing CSRF token', 403)
+    await assertCsrf(req)
     const { name, semesterId } = await parseBody<{ name?: string; semesterId?: string }>(req)
     if (!name?.trim() || !semesterId) return errorResponse('Section name and semester are required', 400)
     const semester = await db.semester.findFirst({ where: { id: semesterId, teacherId: session.teacherId! } })
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const session = await requireRole('TEACHER')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) throw new AuthError('Invalid or missing CSRF token', 403)
+    await assertCsrf(req)
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return errorResponse('Section id is required', 400)
     const result = await db.section.deleteMany({ where: { id, teacherId: session.teacherId! } })

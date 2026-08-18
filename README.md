@@ -28,6 +28,7 @@ Built with Next.js 16, TypeScript, Prisma, PostgreSQL, Tailwind CSS, and shadcn/
 - Admin management for users and the global academic catalogue.
 - Independent personal attendance tracking, isolated from school/college data.
 - Email/password authentication, Google OAuth, session cookies, CSRF protection, and role checks.
+- **Email OTP verification** for registration, password reset, and email changes.
 
 ## Run locally
 
@@ -35,6 +36,7 @@ Built with Next.js 16, TypeScript, Prisma, PostgreSQL, Tailwind CSS, and shadcn/
 
 - Node.js 20 or newer
 - A PostgreSQL database (Neon works well)
+- Gmail account with App Password (for OTP emails)
 
 ### Setup
 
@@ -46,7 +48,25 @@ Create a `.env` file:
 
 ```env
 DATABASE_URL="postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require"
-ATTENDX_SECRET="use-a-long-random-secret-in-production"
+ATTENDX_SECRET="$(openssl rand -hex 32)"
+```
+
+**Required for OTP emails:**
+```env
+SMTP_USER="your-email@gmail.com"
+SMTP_PASS="your-gmail-app-password"
+```
+
+Get a Gmail App Password:
+1. Go to Google Account → Security
+2. Enable 2-Step Verification
+3. Go to App Passwords → Generate new app password
+4. Use the 16-character password as `SMTP_PASS`
+
+**Optional for production rate limiting:**
+```env
+UPSTASH_REDIS_REST_URL=""
+UPSTASH_REDIS_REST_TOKEN=""
 ```
 
 Apply the Prisma schema and start the app:
@@ -67,7 +87,7 @@ Deploying application code does **not** update the database schema. Whenever `pr
 npx prisma db push
 ```
 
-Then redeploy the app. If this step is skipped, APIs can return errors such as “Database schema is out of date” or HTTP 500 responses while querying new fields.
+Then redeploy the app. If this step is skipped, APIs can return errors such as "Database schema is out of date" or HTTP 500 responses while querying new fields.
 
 ## Teacher workflow
 
@@ -91,7 +111,7 @@ For a fresh database, optional demo data can be created with:
 npx prisma db seed
 ```
 
-The seed creates `admin@attendx.edu` / `admin123`. This is for local development only—change or remove that account immediately in any shared or production database.
+⚠️ **WARNING:** The seed script creates weak passwords for demo purposes only. NEVER run this against a production database. Change all passwords immediately after seeding.
 
 ## Validation commands
 
@@ -104,7 +124,12 @@ npm run build
 
 ## Security notes
 
-- Set a unique, strong `ATTENDX_SECRET` in Vercel for production.
-- Never commit `.env` files or database credentials.
-- CSRF tokens are required for mutations.
-- Teacher APIs verify classroom ownership; student APIs expose only memberships belonging to the signed-in student.
+- **Session Secret:** Generate a unique `ATTENDX_SECRET` with `openssl rand -hex 32`. Minimum 32 characters required.
+- **Passwords:** Minimum 12 characters with uppercase, lowercase, number, and special character. Common passwords are rejected.
+- **Rate Limiting:** All sensitive endpoints are rate-limited. Configure Upstash Redis for production or use PostgreSQL fallback.
+- **CSRF Protection:** All mutation endpoints require valid CSRF tokens.
+- **OTP Verification:** Registration, password reset, and email changes require email OTP verification.
+- **Authorization:** All API routes verify database-level ownership. Teachers can only access their own classrooms; students only their own data.
+- **Admin Panel:** Server-side role enforcement, not just frontend hiding.
+- **Security Headers:** HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, and CSP are enforced.
+- **Never commit** `.env` files, database credentials, or secrets.

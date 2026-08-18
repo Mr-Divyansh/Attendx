@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError } from '@/lib/auth'
+import { requireRole, parseBody, json, errorResponse, AuthError, assertCsrf } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
   try {
+    await assertCsrf(req)
     const session = await requireRole('STUDENT')
     const body = await parseBody<{
       fullName?: string

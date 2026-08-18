@@ -7,9 +7,13 @@ import {
   errorResponse,
   hashPassword,
   AuthError,
-  validateCsrfToken,
+  assertCsrf,
   handleRouteError,
 } from '@/lib/auth'
+import { validatePasswordPolicy } from '@/lib/security'
+import { getClientIp } from '@/lib/authz'
+import { rateLimit, RULES } from '@/lib/rate-limit'
+import { logAudit } from '@/lib/audit'
 
 // GET /api/admin/teachers — list teachers with email + department.
 export async function GET() {
@@ -43,10 +47,15 @@ export async function GET() {
 // POST /api/admin/teachers — create User (TEACHER) + Teacher profile.
 export async function POST(req: NextRequest) {
   try {
-    await requireRole('ADMIN')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
-      throw new AuthError('Invalid or missing CSRF token', 403)
-    }
+    const session = await requireRole('ADMIN')
+    await assertCsrf(req)
+
+    await rateLimit({
+      ip: getClientIp(req),
+      identifier: `admin-create-teacher:${session.id}`,
+      rule: RULES.register,
+    })
+
     const body = await parseBody<{
       email?: string
       password?: string
@@ -61,8 +70,10 @@ export async function POST(req: NextRequest) {
     if (!email || !password || !fullName) {
       return errorResponse('email, password and fullName are required', 400)
     }
-    if (password.length < 6) {
-      return errorResponse('Password must be at least 6 characters', 400)
+
+    const policy = validatePasswordPolicy(password, { email, name: fullName })
+    if (!policy.ok) {
+      return errorResponse(policy.reason, 400)
     }
 
     const existing = await db.user.findUnique({ where: { email } })
@@ -81,6 +92,15 @@ export async function POST(req: NextRequest) {
         },
       },
       include: { teacher: true },
+    })
+
+    await logAudit({
+      action: 'admin.create_teacher',
+      actorId: session.id,
+      actorRole: 'ADMIN',
+      targetType: 'Teacher',
+      targetId: user.teacher?.id,
+      ip: getClientIp(req),
     })
 
     return json(

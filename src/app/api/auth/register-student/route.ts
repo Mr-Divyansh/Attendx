@@ -7,21 +7,31 @@ import {
   json,
   errorResponse,
   issueCsrfToken,
-  checkRateLimit,
+  assertCsrf,
   handleRouteError,
 } from '@/lib/auth'
+import { rateLimit, RULES } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/authz'
+import { validatePasswordPolicy } from '@/lib/security'
+import { consumeVerificationTicket } from '@/lib/otp'
 
 // POST /api/auth/register-student — student email/password registration.
 // The role is ALWAYS assigned server-side as STUDENT — the browser cannot
 // choose a privileged role. The Student profile is created with a "PENDING"
 // roll number so the profile-completion step can fill it in later.
+//
+// Requires an OTP verification ticket (purpose 'register-student'); the
+// ticket's email is authoritative and becomes the account email.
 export async function POST(req: NextRequest) {
   try {
-    const { fullName, email, password, confirm } = await parseBody<{
+    await assertCsrf(req)
+
+    const { fullName, email, password, confirm, ticket } = await parseBody<{
       fullName?: string
       email?: string
       password?: string
       confirm?: string
+      ticket?: string
     }>(req)
 
     if (!fullName?.trim() || !email?.trim() || !password || !confirm) {
@@ -30,14 +40,17 @@ export async function POST(req: NextRequest) {
     if (password !== confirm) {
       return errorResponse('Passwords do not match', 400)
     }
-    if (password.length < 8) {
-      return errorResponse('Password must be at least 8 characters', 400)
-    }
 
-    const ip = req.headers.get('x-forwarded-for') || 'unknown'
-    const normalizedEmail = email.toLowerCase().trim()
-    if (!checkRateLimit(`register-student:${ip}:${normalizedEmail}`)) {
-      return errorResponse('Too many attempts. Please try again shortly.', 429)
+    const ip = getClientIp(req)
+    await rateLimit({ ip, identifier: `register-student:${ip}`, rule: RULES.register })
+
+    // Email must be OTP-verified first; the ticket's email is authoritative.
+    const verified = consumeVerificationTicket(ticket, 'register-student')
+    const normalizedEmail = verified.email
+
+    const policy = validatePasswordPolicy(password, { email: normalizedEmail, name: fullName })
+    if (!policy.ok) {
+      return errorResponse(policy.reason, 400)
     }
 
     const existing = await db.user.findUnique({ where: { email: normalizedEmail } })
@@ -50,6 +63,7 @@ export async function POST(req: NextRequest) {
         email: normalizedEmail,
         passwordHash: hashPassword(password),
         role: 'STUDENT',
+        emailVerified: true,
         student: {
           create: {
             fullName: fullName.trim(),

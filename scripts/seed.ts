@@ -1,8 +1,12 @@
 // AttendX — Seed script
 // Creates demo data: departments, semesters, sections, subjects, admin/teacher/student,
 // timetable, attendance records, plus a personal-mode user with timetable & attendance.
+//
+// ⚠️ WARNING: This script creates weak passwords for DEMO PURPOSES ONLY.
+// NEVER run this script against a production database. Use only for local development.
 import { db } from '../src/lib/db'
 import { hashPassword } from '../src/lib/auth'
+import crypto from 'crypto'
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 const PERIODS = [
@@ -18,8 +22,21 @@ function dateOffset(daysAgo: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+// Generate cryptographically secure random attendance data instead of Math.random
+function secureRandomBias(base: number, variance: number): number {
+  const randomValue = crypto.randomBytes(4).readUInt32BE(0) / 0xFFFFFFFF
+  return base + (randomValue * variance)
+}
+
+function secureRandomChoice(probability: number): boolean {
+  const randomValue = crypto.randomBytes(4).readUInt32BE(0) / 0xFFFFFFFF
+  return randomValue < probability
+}
+
 async function main() {
   console.log('🌱 Seeding AttendX database...')
+  console.log('⚠️  WARNING: This script creates weak demo passwords.')
+  console.log('⚠️  NEVER run this against a production database.')
 
   // ── Departments ──
   const cs = await db.department.create({ data: { name: 'Computer Science', code: 'CS' } })
@@ -37,7 +54,7 @@ async function main() {
   await db.user.create({
     data: {
       email: 'admin@attendx.edu',
-      passwordHash: hashPassword('admin123'),
+      passwordHash: hashPassword('Admin123!ChangeMe'),
       role: 'ADMIN',
       admin: { create: { fullName: 'System Admin', perms: 'all' } },
     },
@@ -47,7 +64,7 @@ async function main() {
   const t1User = await db.user.create({
     data: {
       email: 'rao@attendx.edu',
-      passwordHash: hashPassword('teacher123'),
+      passwordHash: hashPassword('Teacher123!ChangeMe'),
       role: 'TEACHER',
       teacher: { create: { fullName: 'Prof. Rao', deptId: cs.id } },
     },
@@ -56,7 +73,7 @@ async function main() {
   const t2User = await db.user.create({
     data: {
       email: 'iyer@attendx.edu',
-      passwordHash: hashPassword('teacher123'),
+      passwordHash: hashPassword('Teacher123!ChangeMe'),
       role: 'TEACHER',
       teacher: { create: { fullName: 'Prof. Iyer', deptId: cs.id } },
     },
@@ -65,7 +82,7 @@ async function main() {
   const t3User = await db.user.create({
     data: {
       email: 'khan@attendx.edu',
-      passwordHash: hashPassword('teacher123'),
+      passwordHash: hashPassword('Teacher123!ChangeMe'),
       role: 'TEACHER',
       teacher: { create: { fullName: 'Prof. Khan', deptId: ec.id } },
     },
@@ -100,7 +117,7 @@ async function main() {
     const sUser = await db.user.create({
       data: {
         email: `student${i + 1}@attendx.edu`,
-        passwordHash: hashPassword('student123'),
+        passwordHash: hashPassword('Student123!ChangeMe'),
         role: 'STUDENT',
         student: {
           create: {
@@ -168,8 +185,8 @@ async function main() {
       const slots = ttMap[dayName]
       if (!slots) continue
       slots.forEach((subjId, idx) => {
-        const bias = stu.rollNo === '01' ? 0.84 : 0.74 + Math.random() * 0.18
-        const r = Math.random()
+        const bias = stu.rollNo === '01' ? 0.84 : secureRandomBias(0.74, 0.18)
+        const r = crypto.randomBytes(4).readUInt32BE(0) / 0xFFFFFFFF
         const status = r < bias ? 'present' : r < bias + 0.12 ? 'late' : 'absent'
         attCreates.push(db.attendance.create({
           data: {
@@ -191,7 +208,7 @@ async function main() {
     data: {
       fullName: 'Riya Kapoor',
       username: 'riya',
-      passwordHash: hashPassword('personal123'),
+      passwordHash: hashPassword('Personal123!ChangeMe'),
       settings: { create: { darkMode: false, language: 'en', goalPct: 90 } },
     },
   })
@@ -228,7 +245,7 @@ async function main() {
     if (dow === 0 || dow === 6) continue
     pSubj.forEach((s, idx) => {
       const bias = 0.86
-      const status = Math.random() < bias ? 'present' : 'absent'
+      const status = secureRandomChoice(bias) ? 'present' : 'absent'
       pattCreates.push(db.personalAttendance.create({
         data: {
           userId: pu.id,
@@ -252,10 +269,11 @@ async function main() {
   })
 
   console.log('✅ Seed complete.')
-  console.log('   Admin:    admin@attendx.edu / admin123')
-  console.log('   Teacher:  rao@attendx.edu / teacher123')
-  console.log('   Student:  student1@attendx.edu / student123')
-  console.log('   Personal: riya / personal123')
+  console.log('   ⚠️  All passwords must be changed immediately in production!')
+  console.log('   Admin:    admin@attendx.edu / Admin123!ChangeMe')
+  console.log('   Teacher:  rao@attendx.edu / Teacher123!ChangeMe')
+  console.log('   Student:  student1@attendx.edu / Student123!ChangeMe')
+  console.log('   Personal: riya / Personal123!ChangeMe')
 }
 
 main()

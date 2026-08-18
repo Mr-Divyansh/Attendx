@@ -32,6 +32,7 @@ model User {
   passwordHash String?
   role         Role     @default(STUDENT)
   disabled     Boolean  @default(false)
+  emailVerified Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -264,6 +265,7 @@ model PersonalUser {
   username     String   @unique
   passwordHash String
   avatarUrl    String?
+  emailVerified Boolean  @default(false)
   createdAt    DateTime @default(now())
 
   timetable     PersonalTimetable[]
@@ -339,4 +341,44 @@ model CollegeNotification {
   message   String
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+
+// ───────────────────────────────────────────────────────────
+// ZONE 4 — Security & trust infrastructure
+// ───────────────────────────────────────────────────────────
+
+model OtpVerification {
+  id          String    @id @default(cuid())
+  email       String
+  purpose     String // register-student | register-teacher | register-personal | reset-password | change-email | admin-reset-password
+  hashedCode  String
+  expiresAt   DateTime
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@index([email, purpose])
+}
+
+model RateLimit {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  count     Int      @default(0)
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actorRole String? // ADMIN | TEACHER | STUDENT | PERSONAL
+  action    String // e.g. admin.create_user, admin.reset_password, admin.export
+  targetType String?
+  targetId  String?
+  details   Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
 }

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole, parseBody, json, errorResponse, AuthError, validateCsrfToken } from '@/lib/auth'
+import { requireRole, parseBody, json, errorResponse, AuthError, assertCsrf } from '@/lib/auth'
 
 export async function GET() {
   try {
@@ -33,9 +33,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('TEACHER')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) {
-      throw new AuthError('Invalid or missing CSRF token', 403)
-    }
+    await assertCsrf(req)
     if (!session.teacherId) return errorResponse('Teacher profile missing', 403)
 
     const body = await parseBody<{

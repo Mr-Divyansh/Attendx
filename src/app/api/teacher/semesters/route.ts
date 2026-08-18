@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { NextRequest } from 'next/server'
-import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteError, validateCsrfToken } from '@/lib/auth'
+import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteError, assertCsrf } from '@/lib/auth'
 
 // Semesters are assigned through either Subject.teacherId or a timetable slot.
 // Supporting both reflects the existing admin workflows and avoids an empty
@@ -39,7 +39,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('TEACHER')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) throw new AuthError('Invalid or missing CSRF token', 403)
+    await assertCsrf(req)
     const { name } = await parseBody<{ name?: string }>(req)
     if (!name?.trim()) return errorResponse('Semester name is required', 400)
     const count = await db.semester.count({ where: { teacherId: session.teacherId! } })
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const session = await requireRole('TEACHER')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) throw new AuthError('Invalid or missing CSRF token', 403)
+    await assertCsrf(req)
     const { id, name } = await parseBody<{ id?: string; name?: string }>(req)
     if (!id || !name?.trim()) return errorResponse('Semester and name are required', 400)
     const result = await db.semester.updateMany({ where: { id, teacherId: session.teacherId! }, data: { name: name.trim() } })
@@ -62,7 +62,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const session = await requireRole('TEACHER')
-    if (!(await validateCsrfToken(req.headers.get('x-csrf-token') || undefined))) throw new AuthError('Invalid or missing CSRF token', 403)
+    await assertCsrf(req)
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return errorResponse('Semester id is required', 400)
     const result = await db.semester.deleteMany({ where: { id, teacherId: session.teacherId! } })
