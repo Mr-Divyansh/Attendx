@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   reactStrictMode: true,
+  // Hides the "X-Powered-By: Next.js" header. The middleware's
+  // response.headers.delete('x-powered-by') can't remove it because Next.js
+  // appends the header after middleware runs — this config flag is the
+  // reliable way to suppress it.
+  poweredByHeader: false,
 };
 
 export default nextConfig;
