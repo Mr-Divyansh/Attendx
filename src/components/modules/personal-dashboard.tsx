@@ -7,6 +7,7 @@
 // ───────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 import {
@@ -1279,6 +1280,7 @@ function HistoryView() {
 function SettingsView() {
   const { user, logout, refresh } = useAuth()
   const { setTheme } = useTheme()
+  const router = useRouter()
   const [settings, setSettings] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
   const [fullName, setFullName] = useState(user?.name || '')
@@ -1380,7 +1382,7 @@ function SettingsView() {
       await apiFetch('/api/personal/account', { method: 'DELETE' })
       toast.success('Account deleted')
       await logout()
-      window.location.href = '/'
+      router.push('/')
     } catch (e) {
       toast.error((e as Error).message || 'Failed to delete account')
     } finally {

@@ -204,7 +204,7 @@ export function DashboardShell({
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-6 overflow-x-hidden">{children}</main>
+        <main className="flex-1 p-4 md:p-6 overflow-x-hidden page-enter">{children}</main>
         <SiteFooter compact />
       </div>
     </div>

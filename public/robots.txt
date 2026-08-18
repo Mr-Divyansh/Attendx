@@ -1,14 +1,26 @@
 User-agent: Googlebot
 Allow: /
+Disallow: /admin-panel
+Disallow: /api/
 
 User-agent: Bingbot
 Allow: /
+Disallow: /admin-panel
+Disallow: /api/
 
 User-agent: Twitterbot
 Allow: /
+Disallow: /admin-panel
+Disallow: /api/
 
 User-agent: facebookexternalhit
 Allow: /
+Disallow: /admin-panel
+Disallow: /api/
 
 User-agent: *
 Allow: /
+Disallow: /admin-panel
+Disallow: /api/
+
+Sitemap: https://attendx.netlify.app/sitemap.xml

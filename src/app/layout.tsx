@@ -15,8 +15,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://attendx.netlify.app";
+
 export const metadata: Metadata = {
-  title: "AttendX — Smart Attendance Management",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "AttendX — Smart Attendance Management",
+    template: "%s | AttendX",
+  },
   description:
     "AttendX is a modular, dual-mode attendance platform combining a College Management System (Admin / Teacher / Student roles) with an independent Personal Attendance Tracker.",
   keywords: [
@@ -25,12 +31,56 @@ export const metadata: Metadata = {
     "college management",
     "student attendance",
     "personal tracker",
+    "attendance management system",
+    "college attendance software",
+    "online attendance system",
+    "student attendance tracker",
+    "college attendance management",
   ],
   authors: [{ name: "AttendX" }],
+  creator: "Divyansh Kumar",
+  publisher: "AttendX",
   icons: {
     icon: "/Attendx-logo.png",
     shortcut: "/Attendx-logo.png",
     apple: "/Attendx-logo.png",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: siteUrl,
+    siteName: "AttendX",
+    title: "AttendX — Smart Attendance Management",
+    description:
+      "A clean, secure platform where teachers mark attendance and students track their progress across every class — or track your own attendance privately with the Personal Tracker.",
+    images: [
+      {
+        url: "/Attendx-logo.png",
+        width: 512,
+        height: 512,
+        alt: "AttendX logo",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: "AttendX — Smart Attendance Management",
+    description:
+      "A clean, secure platform where teachers mark attendance and students track their progress across every class — or track your own attendance privately with the Personal Tracker.",
+    images: ["/Attendx-logo.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  alternates: {
+    canonical: siteUrl,
   },
 };
 
