@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     })
 
     const data = contactSchema.safeParse(await req.json())
-    if (!data.success) return errorResponse('Please provide a valid name, email, and message.', 400)
+    if (!data.success) return errorResponse('Please provide a valid name, email, subject, and message.', 400)
 
     const form = new FormData()
     form.set('access_key', accessKey)
