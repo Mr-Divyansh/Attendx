@@ -33,6 +33,7 @@ import {
   KeyRound,
   Loader2,
   Save,
+  ShieldCheck,
   Lightbulb,
 } from 'lucide-react'
 
@@ -79,6 +80,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import {
   ResponsiveContainer,
   RadialBarChart,
@@ -1288,7 +1290,16 @@ function SettingsView() {
   const [profileSaving, setProfileSaving] = useState(false)
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' })
   const [pwSaving, setPwSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const [username, setUsername] = useState(user?.username || '')
+  // Delete-account OTP flow
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteStep, setDeleteStep] = useState<'confirm' | 'otp'>('confirm')
+  const [deleteOtp, setDeleteOtp] = useState('')
+  const [deleteResendDisabled, setDeleteResendDisabled] = useState(false)
+  const [deleteResendCountdown, setDeleteResendCountdown] = useState(0)
+  const [deleteSending, setDeleteSending] = useState(false)
+  const [deleteVerifying, setDeleteVerifying] = useState(false)
+  const deleteCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1327,6 +1338,14 @@ function SettingsView() {
       toast.error('Full name cannot be empty')
       return
     }
+    if (!username.trim()) {
+      toast.error('Login ID cannot be empty')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(username.trim())) {
+      toast.error('Login ID must be a valid email address')
+      return
+    }
     setProfileSaving(true)
     try {
       await apiFetch('/api/personal/profile', {
@@ -1334,6 +1353,7 @@ function SettingsView() {
         body: JSON.stringify({
           fullName: fullName.trim(),
           avatarUrl: avatarUrl.trim() || null,
+          username: username.trim().toLowerCase(),
         }),
       })
       await refresh()
@@ -1376,19 +1396,98 @@ function SettingsView() {
     }
   }
 
-  const handleDeleteAccount = async () => {
-    setDeleting(true)
+  const clearDeleteCountdown = () => {
+    if (deleteCountdownRef.current) {
+      clearInterval(deleteCountdownRef.current)
+      deleteCountdownRef.current = null
+    }
+  }
+
+  const startDeleteCountdown = (seconds: number) => {
+    clearDeleteCountdown()
+    setDeleteResendDisabled(true)
+    setDeleteResendCountdown(seconds)
+    deleteCountdownRef.current = setInterval(() => {
+      setDeleteResendCountdown((prev) => {
+        if (prev <= 1) {
+          clearDeleteCountdown()
+          setDeleteResendDisabled(false)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }
+
+  const sendDeleteOtp = async () => {
+    if (!user?.username) return
+    setDeleteSending(true)
     try {
-      await apiFetch('/api/personal/account', { method: 'DELETE' })
+      const data = await apiFetch<{
+        ok: boolean
+        maskedEmail: string
+        expiresInSeconds: number
+        retryAfterSeconds: number
+      }>('/api/auth/otp/send', {
+        method: 'POST',
+        body: JSON.stringify({ email: user.username, purpose: 'delete-account' }),
+      })
+      setDeleteStep('otp')
+      toast.success(`Verification code sent to ${data.maskedEmail}`)
+      startDeleteCountdown(data.retryAfterSeconds)
+    } catch (e) {
+      toast.error((e as Error).message || 'Failed to send verification code')
+    } finally {
+      setDeleteSending(false)
+    }
+  }
+
+  const handleDeleteVerify = async () => {
+    if (!user?.username) return
+    setDeleteVerifying(true)
+    try {
+      const verifyData = await apiFetch<{
+        ok: boolean
+        ticket: string
+        maskedEmail: string
+      }>('/api/auth/otp/verify', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: user.username,
+          purpose: 'delete-account',
+          code: deleteOtp,
+        }),
+      })
+      await apiFetch('/api/personal/account', {
+        method: 'DELETE',
+        body: JSON.stringify({ ticket: verifyData.ticket }),
+      })
       toast.success('Account deleted')
       await logout()
       router.push('/')
     } catch (e) {
       toast.error((e as Error).message || 'Failed to delete account')
     } finally {
-      setDeleting(false)
+      setDeleteVerifying(false)
     }
   }
+
+  const handleDeleteDialogChange = (open: boolean) => {
+    setDeleteOpen(open)
+    if (!open) {
+      clearDeleteCountdown()
+      setDeleteStep('confirm')
+      setDeleteOtp('')
+      setDeleteResendDisabled(false)
+      setDeleteResendCountdown(0)
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      clearDeleteCountdown()
+    }
+  }, [])
 
   if (loading || !settings) {
     return (
@@ -1474,7 +1573,7 @@ function SettingsView() {
             <UserIcon className="size-4" />
             Profile
           </CardTitle>
-          <CardDescription>Update your name and avatar.</CardDescription>
+          <CardDescription>Update your name, login ID, and avatar.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
@@ -1501,6 +1600,20 @@ function SettingsView() {
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="username">Login ID (email)</Label>
+            <Input
+              id="username"
+              type="email"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="username"
+            />
+            <p className="text-xs text-muted-foreground">
+              You sign in with this address. If you change it, use the new address next time.
+            </p>
           </div>
           <div className="flex justify-end">
             <Button onClick={handleProfileSave} disabled={profileSaving}>
@@ -1574,7 +1687,7 @@ function SettingsView() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <AlertDialog>
+          <AlertDialog open={deleteOpen} onOpenChange={handleDeleteDialogChange}>
             <AlertDialogTrigger asChild>
               <Button variant="destructive">
                 <Trash2 className="size-4 mr-2" />
@@ -1582,30 +1695,98 @@ function SettingsView() {
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete your timetable, attendance history,
-                  settings, and notifications. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleDeleteAccount}
-                  disabled={deleting}
-                  className="bg-destructive text-white hover:bg-destructive/90"
-                >
-                  {deleting ? (
-                    <>
-                      <Loader2 className="size-4 mr-2 animate-spin" />
-                      Deleting…
-                    </>
-                  ) : (
-                    'Yes, delete my account'
-                  )}
-                </AlertDialogAction>
-              </AlertDialogFooter>
+              {deleteStep === 'confirm' ? (
+                <>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete your timetable, attendance history,
+                      settings, and notifications. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={deleteSending}>Cancel</AlertDialogCancel>
+                    <Button
+                      onClick={sendDeleteOtp}
+                      disabled={deleteSending}
+                      className="bg-destructive text-white hover:bg-destructive/90"
+                    >
+                      {deleteSending ? (
+                        <>
+                          <Loader2 className="size-4 mr-2 animate-spin" />
+                          Sending code…
+                        </>
+                      ) : (
+                        'Send verification code'
+                      )}
+                    </Button>
+                  </AlertDialogFooter>
+                </>
+              ) : (
+                <div className="space-y-4">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Enter the verification code</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      We sent a 6-digit code to{' '}
+                      {user?.username ? (
+                        <span className="font-medium text-foreground">{user.username}</span>
+                      ) : (
+                        'your email'
+                      )}
+                      . Deleting your account is permanent and cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="flex justify-center">
+                    <InputOTP
+                      value={deleteOtp}
+                      onChange={setDeleteOtp}
+                      maxLength={6}
+                      className="justify-center"
+                    >
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} />
+                        <InputOTPSlot index={1} />
+                        <InputOTPSlot index={2} />
+                        <InputOTPSlot index={3} />
+                        <InputOTPSlot index={4} />
+                        <InputOTPSlot index={5} />
+                      </InputOTPGroup>
+                    </InputOTP>
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={deleteVerifying}>Cancel</AlertDialogCancel>
+                    <Button
+                      onClick={handleDeleteVerify}
+                      disabled={deleteVerifying || deleteOtp.length !== 6}
+                      className="bg-destructive text-white hover:bg-destructive/90"
+                    >
+                      {deleteVerifying ? (
+                        <>
+                          <Loader2 className="size-4 mr-2 animate-spin" />
+                          Deleting…
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck className="size-4 mr-2" />
+                          Verify & Delete
+                        </>
+                      )}
+                    </Button>
+                  </AlertDialogFooter>
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={sendDeleteOtp}
+                      disabled={deleteResendDisabled || deleteSending}
+                      className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {deleteResendDisabled
+                        ? `Resend code in ${deleteResendCountdown}s`
+                        : "Didn't receive a code? Resend"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </AlertDialogContent>
           </AlertDialog>
         </CardContent>

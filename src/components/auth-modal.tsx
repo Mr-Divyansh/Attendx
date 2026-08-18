@@ -20,7 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { toast } from 'sonner'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, ApiError } from '@/lib/api'
 import {
   GraduationCap,
   Users,
@@ -105,6 +105,7 @@ export function AuthModal() {
   const [step, setStep] = useState<Step>('role')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
 
   // Student login / register
   const [email, setEmail] = useState('')
@@ -163,6 +164,7 @@ export function AuthModal() {
     openLogin(null)
     setStep('role')
     setErr(null)
+    setInfo(null)
     setBusy(false)
     setEmail('')
     setPassword('')
@@ -192,6 +194,7 @@ export function AuthModal() {
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
     setErr(null)
+    setInfo(null)
     try {
       await fn()
     } catch (e) {
@@ -201,21 +204,57 @@ export function AuthModal() {
     }
   }
 
+  // New-email login flow: when the API reports EMAIL_NOT_REGISTERED, jump to
+  // the matching register step with email/password prefilled and explain the
+  // OTP verification step that follows.
+  const beginNewEmailRegistration = (kind: 'student' | 'teacher' | 'personal') => {
+    const targetEmail = (kind === 'personal' ? personal.username : email).trim()
+    if (kind === 'student') {
+      setReg({ fullName: '', email: targetEmail, password, confirm: '' })
+      setStep('student-register')
+    } else if (kind === 'teacher') {
+      setTeacherReg({
+        fullName: '',
+        email: targetEmail,
+        password,
+        confirm: '',
+        subjectTaught: '',
+        institutionName: '',
+      })
+      setStep('teacher-register')
+    } else {
+      setPersonal((p) => ({ ...p, password, confirm: '' }))
+      setStep('personal-register')
+    }
+    setErr(null)
+    setInfo(
+      `No account found for ${targetEmail}. Verify your email below — we'll send a one-time code and create your account.`
+    )
+  }
+
   // ── STUDENT ──────────────────────────────────────────────────────────────
   const handleStudentLogin = (e: React.FormEvent) =>
     run(async () => {
       e.preventDefault()
-      const data = await apiFetch<{ user: SessionUser; csrfToken: string }>(
-        '/api/auth/login',
-        {
-          method: 'POST',
-          body: JSON.stringify({ email, password, role: 'STUDENT' }),
+      try {
+        const data = await apiFetch<{ user: SessionUser; csrfToken: string }>(
+          '/api/auth/login',
+          {
+            method: 'POST',
+            body: JSON.stringify({ email, password, role: 'STUDENT' }),
+          }
+        )
+        setUser(data.user)
+        setCsrf(data.csrfToken)
+        toast.success(`Welcome back, ${data.user.name}!`)
+        await finishAuth()
+      } catch (e2) {
+        if (e2 instanceof ApiError && e2.code === 'EMAIL_NOT_REGISTERED') {
+          beginNewEmailRegistration('student')
+          return
         }
-      )
-      setUser(data.user)
-      setCsrf(data.csrfToken)
-      toast.success(`Welcome back, ${data.user.name}!`)
-      await finishAuth()
+        throw e2
+      }
     })
 
   const handleStudentRegister = (e: React.FormEvent) =>
@@ -290,6 +329,7 @@ export function AuthModal() {
       setUser(data.user)
       setCsrf(data.csrfToken)
       setStudentProfile((p) => ({ ...p, fullName: data.user.name }))
+      setInfo(null)
       setStep('student-profile')
       toast.success('Account created! Complete your profile to continue.')
     })
@@ -343,17 +383,25 @@ export function AuthModal() {
   const handleTeacherLogin = (e: React.FormEvent) =>
     run(async () => {
       e.preventDefault()
-      const data = await apiFetch<{ user: SessionUser; csrfToken: string }>(
-        '/api/auth/login',
-        {
-          method: 'POST',
-          body: JSON.stringify({ email, password, role: 'TEACHER' }),
+      try {
+        const data = await apiFetch<{ user: SessionUser; csrfToken: string }>(
+          '/api/auth/login',
+          {
+            method: 'POST',
+            body: JSON.stringify({ email, password, role: 'TEACHER' }),
+          }
+        )
+        setUser(data.user)
+        setCsrf(data.csrfToken)
+        toast.success(`Welcome back, ${data.user.name}!`)
+        await finishAuth()
+      } catch (e2) {
+        if (e2 instanceof ApiError && e2.code === 'EMAIL_NOT_REGISTERED') {
+          beginNewEmailRegistration('teacher')
+          return
         }
-      )
-      setUser(data.user)
-      setCsrf(data.csrfToken)
-      toast.success(`Welcome back, ${data.user.name}!`)
-      await finishAuth()
+        throw e2
+      }
     })
 
   const handleTeacherRegister = (e: React.FormEvent) =>
@@ -429,6 +477,7 @@ export function AuthModal() {
         subjectTaught: teacherReg.subjectTaught,
         institutionName: teacherReg.institutionName,
       })
+      setInfo(null)
       if (data.needsProfile) {
         setStep('teacher-profile')
         toast.success('Account created! Complete your teacher profile.')
@@ -483,20 +532,28 @@ export function AuthModal() {
   const handlePersonalLogin = (e: React.FormEvent) =>
     run(async () => {
       e.preventDefault()
-      const data = await apiFetch<{ user: SessionUser; csrfToken: string }>(
-        '/api/auth/login-personal',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            username: personal.username,
-            password: personal.password,
-          }),
+      try {
+        const data = await apiFetch<{ user: SessionUser; csrfToken: string }>(
+          '/api/auth/login-personal',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              username: personal.username,
+              password: personal.password,
+            }),
+          }
+        )
+        setUser(data.user)
+        setCsrf(data.csrfToken)
+        toast.success(`Welcome back, ${data.user.name}!`)
+        await finishAuth()
+      } catch (e2) {
+        if (e2 instanceof ApiError && e2.code === 'EMAIL_NOT_REGISTERED') {
+          beginNewEmailRegistration('personal')
+          return
         }
-      )
-      setUser(data.user)
-      setCsrf(data.csrfToken)
-      toast.success(`Welcome back, ${data.user.name}!`)
-      await finishAuth()
+        throw e2
+      }
     })
 
   const handlePersonalRegister = (e: React.FormEvent) =>
@@ -569,6 +626,7 @@ export function AuthModal() {
       )
       setUser(data.user)
       setCsrf(data.csrfToken)
+      setInfo(null)
       toast.success(`Welcome, ${data.user.name}!`)
       await finishAuth()
     })
@@ -629,7 +687,10 @@ export function AuthModal() {
           {!header.isRole && (
             <button
               type="button"
-              onClick={() => setStep('role')}
+              onClick={() => {
+                setInfo(null)
+                setStep('role')
+              }}
               className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="size-4" />
@@ -637,6 +698,11 @@ export function AuthModal() {
             </button>
           )}
 
+          {info && (
+            <Alert className="mb-4">
+              <AlertDescription>{info}</AlertDescription>
+            </Alert>
+          )}
           {err && (
             <Alert variant="destructive" className="mb-4">
               <AlertDescription>{err}</AlertDescription>

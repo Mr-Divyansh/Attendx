@@ -22,6 +22,7 @@ export const OTP_PURPOSES = [
   'reset-password',
   'change-email',
   'admin-reset-password',
+  'delete-account',
 ] as const
 export type OtpPurpose = (typeof OTP_PURPOSES)[number]
 
@@ -37,6 +38,7 @@ const PURPOSES: Record<OtpPurpose, { emailSubject: string; purposeLabel: string 
   'reset-password': { emailSubject: 'Reset your AttendX password', purposeLabel: 'reset your password' },
   'change-email': { emailSubject: 'Verify your new email', purposeLabel: 'verify your new email address' },
   'admin-reset-password': { emailSubject: 'Reset your AttendX password', purposeLabel: 'reset your password' },
+  'delete-account': { emailSubject: 'Confirm your AttendX account deletion', purposeLabel: 'delete your account' },
 }
 
 function normalizeEmail(email: string): string {

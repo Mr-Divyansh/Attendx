@@ -41,7 +41,15 @@ export async function POST(req: NextRequest) {
       include: { settings: true },
     })
 
-    if (!pu || !verifyPassword(password, pu.passwordHash)) {
+    if (!pu) {
+      return errorResponse(
+        'No account found for this username. Verify your email to create your account.',
+        401,
+        { code: 'EMAIL_NOT_REGISTERED' }
+      )
+    }
+
+    if (!verifyPassword(password, pu.passwordHash)) {
       return errorResponse('Invalid username or password', 401)
     }
 

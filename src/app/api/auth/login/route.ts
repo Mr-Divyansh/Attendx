@@ -43,11 +43,22 @@ export async function POST(req: NextRequest) {
       include: { admin: true, teacher: true, student: true },
     })
 
-    // Single generic message for every failure mode — never reveal whether
-    // the email exists, the role matches, the account is disabled, or the
-    // profile is incomplete. User enumeration is a state leak.
+    // New email: no account exists at all. Distinct message so the client can
+    // offer OTP email verification and account creation. Per-email login rate
+    // limiting above still applies before this branch is reachable.
+
+    // Single generic message for every remaining failure mode — never reveal
+    // whether the role matches, the account is disabled, or the profile is
+    // incomplete. User enumeration is a state leak.
+    if (!user) {
+      return errorResponse(
+        'No account found for this email. Verify your email to create your account.',
+        401,
+        { code: 'EMAIL_NOT_REGISTERED' }
+      )
+    }
+
     if (
-      !user ||
       user.role !== role ||
       user.disabled ||
       !user.passwordHash ||

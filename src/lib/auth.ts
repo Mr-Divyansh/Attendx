@@ -282,8 +282,8 @@ export function json(data: unknown, status = 200) {
   return Response.json(data, { status })
 }
 
-export function errorResponse(message: string, status = 400) {
-  return Response.json({ error: message }, { status })
+export function errorResponse(message: string, status = 400, extra?: Record<string, unknown>) {
+  return Response.json({ error: message, ...extra }, { status })
 }
 
 /**

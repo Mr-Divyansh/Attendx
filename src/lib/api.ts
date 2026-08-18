@@ -3,6 +3,20 @@
 // AttendX — API fetch helper with automatic CSRF token attachment.
 import { useAuth } from '@/stores/auth-store'
 
+// Error thrown by apiFetch for any non-ok response. Carries the server's
+// machine-readable `code` (when present) so callers can branch on it.
+export class ApiError extends Error {
+  code?: string
+  status: number
+
+  constructor(message: string, code?: string, status = 0) {
+    super(message)
+    this.name = 'ApiError'
+    this.code = code
+    this.status = status
+  }
+}
+
 export async function apiFetch<T = unknown>(
   url: string,
   options: RequestInit = {}
@@ -29,7 +43,11 @@ export async function apiFetch<T = unknown>(
     const msg =
       (data && typeof data === 'object' && 'error' in data && (data as { error: string }).error) ||
       `Request failed (${res.status})`
-    throw new Error(msg)
+    const code =
+      data && typeof data === 'object' && 'code' in data
+        ? (data as { code?: string }).code
+        : undefined
+    throw new ApiError(msg, code, res.status)
   }
   return data as T
 }
