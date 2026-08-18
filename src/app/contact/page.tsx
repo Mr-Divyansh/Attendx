@@ -48,6 +48,7 @@ export default function ContactPage() {
           <CardContent className="pt-6">
             <form onSubmit={submit} className="space-y-5">
               <div className="grid gap-5 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="name">Name</Label><Input id="name" name="name" autoComplete="name" required minLength={2} placeholder="Your name" /></div><div className="space-y-2"><Label htmlFor="email">Email address</Label><Input id="email" name="email" type="email" autoComplete="email" required placeholder="you@example.com" /></div></div>
+              <div className="space-y-2"><Label htmlFor="subject">Subject</Label><Input id="subject" name="subject" required minLength={2} maxLength={160} placeholder="How can we help?" /></div>
               <div className="space-y-2"><Label htmlFor="message">Message</Label><Textarea id="message" name="message" required minLength={10} rows={7} placeholder="Tell us how we can help..." /></div>
               {message && <p role="status" className={`flex items-center gap-2 text-sm ${status === 'success' ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive'}`}>{status === 'success' && <CheckCircle2 className="size-4" />}{message}</p>}
               <Button type="submit" size="lg" disabled={status === 'sending'} className="w-full sm:w-auto">{status === 'sending' && <Loader2 className="mr-2 size-4 animate-spin" />}{status === 'sending' ? 'Sending message' : 'Send message'}</Button>
