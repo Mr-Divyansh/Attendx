@@ -15,6 +15,8 @@ import { rateLimit, RULES } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/authz'
 import { validatePasswordPolicy } from '@/lib/security'
 
+export const runtime = 'nodejs'
+
 // POST /api/personal/change-password — verify current, set new
 export async function POST(req: NextRequest) {
   try {

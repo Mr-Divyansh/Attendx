@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteError, assertCsrf } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 function sessionPeriod(startTime: string) { return Number(startTime.slice(0, 2)) * 60 + Number(startTime.slice(3, 5)) }
 
 export async function GET(req: NextRequest, context: RouteContext<'/api/classrooms/[id]/attendance'>) {

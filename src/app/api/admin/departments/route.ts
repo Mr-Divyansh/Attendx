@@ -10,6 +10,8 @@ import {
   handleRouteError,
 } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 // GET /api/admin/departments
 export async function GET() {
   try {

@@ -11,6 +11,8 @@ import {
   handleRouteError,
 } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 // PUT /api/admin/students/[id] — update a student (and optionally their email/password).
 export async function PUT(
   req: NextRequest,

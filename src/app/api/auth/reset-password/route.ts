@@ -14,6 +14,8 @@ import { getClientIp } from '@/lib/authz'
 import { rateLimit, RULES } from '@/lib/rate-limit'
 import { consumeVerificationTicket } from '@/lib/otp'
 
+export const runtime = 'nodejs'
+
 // POST /api/auth/reset-password — reset password using OTP verification ticket
 export async function POST(req: NextRequest) {
   try {

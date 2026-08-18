@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteError, assertCsrf } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 async function owned(id: string, teacherId: string) {
   return db.classroom.findFirst({ where: { id, teacherId }, include: { subject: true, semester: { select: { id: true, name: true } }, members: { include: { student: { include: { user: { select: { email: true } } } } } }, schedules: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } } })
 }

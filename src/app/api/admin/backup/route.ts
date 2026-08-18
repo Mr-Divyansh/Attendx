@@ -3,6 +3,8 @@ import { requireRole, json, errorResponse, AuthError,
   handleRouteError,
 } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 // GET /api/admin/backup — return a JSON dump of every table (simulates mysqldump).
 export async function GET() {
   try {

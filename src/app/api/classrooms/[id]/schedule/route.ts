@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteError, assertCsrf } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 const DAYS = new Set(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
 const DAY_ALIASES: Record<string, string> = { Monday: 'Mon', Tuesday: 'Tue', Wednesday: 'Wed', Thursday: 'Thu', Friday: 'Fri', Saturday: 'Sat', Sunday: 'Sun' }
 

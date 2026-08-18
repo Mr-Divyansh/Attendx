@@ -9,6 +9,8 @@ import {
   assertCsrf,
 } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('TEACHER')

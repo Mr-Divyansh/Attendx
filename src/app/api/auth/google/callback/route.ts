@@ -15,6 +15,8 @@ import {
   OAUTH_STATE_COOKIE,
 } from '@/lib/oauth'
 
+export const runtime = 'nodejs'
+
 type GoogleProfile = { sub: string; email: string; name: string }
 
 async function upsertGoogleStudent(profile: GoogleProfile) {

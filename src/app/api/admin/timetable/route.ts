@@ -10,6 +10,8 @@ import {
   handleRouteError,
 } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 // GET /api/admin/timetable — list all timetable entries with relations.
 export async function GET() {
   try {

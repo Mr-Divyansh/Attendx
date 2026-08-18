@@ -15,6 +15,8 @@ import { getClientIp } from '@/lib/authz'
 import { validatePasswordPolicy } from '@/lib/security'
 import { consumeVerificationTicket } from '@/lib/otp'
 
+export const runtime = 'nodejs'
+
 // POST /api/auth/register-student — student email/password registration.
 // The role is ALWAYS assigned server-side as STUDENT — the browser cannot
 // choose a privileged role. The Student profile is created with a "PENDING"

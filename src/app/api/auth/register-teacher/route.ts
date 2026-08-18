@@ -15,6 +15,8 @@ import { getClientIp } from '@/lib/authz'
 import { validatePasswordPolicy } from '@/lib/security'
 import { consumeVerificationTicket } from '@/lib/otp'
 
+export const runtime = 'nodejs'
+
 // POST /api/auth/register-teacher — teacher email/password registration.
 // Role is assigned server-side. Requires an OTP verification ticket
 // (purpose 'register-teacher'); the ticket's email is authoritative.

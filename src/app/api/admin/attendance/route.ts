@@ -4,6 +4,8 @@ import { requireRole, json, errorResponse, AuthError,
   handleRouteError,
 } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 // GET /api/admin/attendance — list attendance with student/subject names.
 // Optional filters: subjectId, sectionId, date (YYYY-MM-DD).
 export async function GET(req: NextRequest) {

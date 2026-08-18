@@ -10,6 +10,8 @@ import {
   handleRouteError,
 } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 // PUT /api/personal/profile — update fullName (and optionally avatarUrl)
 export async function PUT(req: NextRequest) {
   try {

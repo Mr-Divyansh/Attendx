@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { requireRole, json, errorResponse, AuthError, handleRouteError, assertCsrf } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 // DELETE /api/student/classrooms/[id] — leave one classroom only.
 // The student account and memberships in other classrooms are untouched.
 export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {

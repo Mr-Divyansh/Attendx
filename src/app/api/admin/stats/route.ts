@@ -3,6 +3,8 @@ import { requireRole, json, errorResponse, AuthError,
   handleRouteError,
 } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 // GET /api/admin/stats — high-level counts for the admin overview cards.
 export async function GET() {
   try {

@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { requireRole, parseBody, json, errorResponse, AuthError, assertCsrf, handleRouteError } from '@/lib/auth'
 import { makeClassroomPublicId, secureCode } from '@/lib/oauth'
 
+export const runtime = 'nodejs'
+
 function makeJoinCode() {
   // 6 chars from 32-char alphabet = 30 bits; secureCode uses CSPRNG.
   return secureCode(6)

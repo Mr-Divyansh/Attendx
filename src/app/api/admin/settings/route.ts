@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { requireRole, parseBody, json, errorResponse, AuthError, assertCsrf } from '@/lib/auth'
 import { getMinimumAttendancePercentage, setMinimumAttendancePercentage } from '@/lib/config'
 
+export const runtime = 'nodejs'
+
 export async function GET() {
   try {
     await requireRole('ADMIN')

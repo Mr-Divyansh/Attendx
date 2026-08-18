@@ -15,6 +15,8 @@ import { getClientIp } from '@/lib/authz'
 import { rateLimit, RULES } from '@/lib/rate-limit'
 import { logAudit } from '@/lib/audit'
 
+export const runtime = 'nodejs'
+
 // GET /api/admin/teachers — list teachers with email + department.
 export async function GET() {
   try {

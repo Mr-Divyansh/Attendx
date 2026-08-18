@@ -10,6 +10,8 @@ import {
   handleRouteError,
 } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 // PUT /api/admin/subjects/[id] — update subject fields.
 export async function PUT(
   req: NextRequest,

@@ -15,6 +15,8 @@ import { getClientIp } from '@/lib/authz'
 import { rateLimit, RULES } from '@/lib/rate-limit'
 import { logAudit } from '@/lib/audit'
 
+export const runtime = 'nodejs'
+
 // POST /api/admin/reset-password — admin resets any user's password.
 export async function POST(req: NextRequest) {
   try {

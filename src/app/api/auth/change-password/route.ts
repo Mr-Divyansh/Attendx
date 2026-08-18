@@ -14,6 +14,8 @@ import { rateLimit, RULES } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/authz'
 import { validatePasswordPolicy } from '@/lib/security'
 
+export const runtime = 'nodejs'
+
 // POST /api/auth/change-password — college users (STUDENT / TEACHER / ADMIN).
 //
 // Two flows:

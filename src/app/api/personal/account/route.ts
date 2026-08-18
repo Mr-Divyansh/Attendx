@@ -10,6 +10,8 @@ import {
   handleRouteError,
 } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 // DELETE /api/personal/account — delete the PersonalUser (cascades to all related data)
 export async function DELETE(req: NextRequest) {
   try {

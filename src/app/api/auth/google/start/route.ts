@@ -11,6 +11,8 @@ import { errorResponse,
   handleRouteError,
 } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 export async function GET(req: NextRequest) {
   try {
     const role = req.nextUrl.searchParams.get('role') || 'STUDENT'

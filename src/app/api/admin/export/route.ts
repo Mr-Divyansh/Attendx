@@ -4,6 +4,8 @@ import { requireRole, errorResponse, AuthError,
   handleRouteError,
 } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 // GET /api/admin/export — export attendance as CSV (text/csv).
 export async function GET(_req: NextRequest) {
   try {

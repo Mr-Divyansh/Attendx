@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { requireRole, parseBody, json, errorResponse, AuthError, assertCsrf } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 export async function GET() {
   try {
     const session = await requireRole('TEACHER')

@@ -6,6 +6,8 @@ import {
   assertCsrf,
 } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 // POST /api/auth/logout — destroy session
 export async function POST(req: Request) {
   try {

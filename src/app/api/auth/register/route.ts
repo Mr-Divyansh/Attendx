@@ -15,6 +15,8 @@ import { getClientIp } from '@/lib/authz'
 import { validatePasswordPolicy } from '@/lib/security'
 import { consumeVerificationTicket } from '@/lib/otp'
 
+export const runtime = 'nodejs'
+
 // POST /api/auth/register — personal-mode self-registration
 // Fields: fullName, username (email), password, confirm, ticket
 // `ticket` is the HMAC-signed proof from /api/auth/otp/verify that the

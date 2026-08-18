@@ -10,6 +10,8 @@ import {
   handleRouteError,
 } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 // GET /api/admin/subjects — list subjects with related semester/section/dept/teacher.
 export async function GET() {
   try {

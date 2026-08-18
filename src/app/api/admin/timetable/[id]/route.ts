@@ -9,6 +9,8 @@ import {
   handleRouteError,
 } from '@/lib/auth'
 
+export const runtime = 'nodejs'
+
 // DELETE /api/admin/timetable/[id]
 export async function DELETE(
   req: NextRequest,

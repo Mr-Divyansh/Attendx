@@ -4,6 +4,8 @@ import { requireRole, parseBody, json, errorResponse, AuthError, assertCsrf } fr
 import { getClientIp } from '@/lib/authz'
 import { rateLimit, RULES } from '@/lib/rate-limit'
 
+export const runtime = 'nodejs'
+
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('STUDENT')

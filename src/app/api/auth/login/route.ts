@@ -14,6 +14,8 @@ import {
 import { rateLimit, RULES } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/authz'
 
+export const runtime = 'nodejs'
+
 // POST /api/auth/login — college login (email + password + role)
 export async function POST(req: NextRequest) {
   try {

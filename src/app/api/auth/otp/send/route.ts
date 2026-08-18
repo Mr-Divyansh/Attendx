@@ -3,6 +3,9 @@ import { sendOtp, OTP_PURPOSES, type OtpPurpose } from '@/lib/otp'
 import { getClientIp } from '@/lib/authz'
 import { parseBody, json, errorResponse, handleRouteError } from '@/lib/auth'
 
+// Force Node.js runtime for crypto operations
+export const runtime = 'nodejs'
+
 // POST /api/auth/otp/send — send an OTP for a specific purpose
 export async function POST(req: NextRequest) {
   try {
