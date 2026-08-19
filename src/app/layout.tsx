@@ -26,6 +26,8 @@ export const metadata: Metadata = {
   },
   description:
     "AttendX is a modular, dual-mode attendance platform combining a College Management System (Admin / Teacher / Student roles) with an independent Personal Attendance Tracker.",
+  applicationName: "AttendX",
+  category: "Education",
   keywords: [
     "AttendX",
     "attendance",
@@ -37,14 +39,32 @@ export const metadata: Metadata = {
     "online attendance system",
     "student attendance tracker",
     "college attendance management",
+    "school attendance",
+    "attendance app",
+    "face attendance",
+    "biometric attendance",
+    "QR code attendance",
   ],
-  authors: [{ name: "AttendX" }],
+  authors: [{ name: "Divyansh Kumar" }],
   creator: "Divyansh Kumar",
   publisher: "AttendX",
+  verification: {
+    google: "JogQIlGlFRhRt-aEErPDEqQCUhbTyfgGEoE5tSDMLz0",
+  },
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
   icons: {
     icon: "/Attendx-logo.png",
     shortcut: "/Attendx-logo.png",
     apple: "/Attendx-logo.png",
+  },
+  appleWebApp: {
+    capable: true,
+    title: "AttendX",
+    statusBarStyle: "default",
   },
   openGraph: {
     type: "website",
@@ -64,7 +84,8 @@ export const metadata: Metadata = {
     ],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
+    site: "@AttendX",
     title: "AttendX — Smart Attendance Management",
     description:
       "A clean, secure platform where teachers mark attendance and students track their progress across every class — or track your own attendance privately with the Personal Tracker.",
