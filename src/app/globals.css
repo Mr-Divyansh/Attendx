@@ -333,3 +333,64 @@
     font-feature-settings: "tnum";
   }
 }
+
+
+/* ────────────────────────────────────────────────────────────────────────
+   PRODUCT POLISH — shared cards, controls and dashboard surfaces
+   ──────────────────────────────────────────────────────────────────────── */
+@layer base {
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 22%, transparent);
+    color: var(--foreground);
+  }
+
+  button,
+  a,
+  input,
+  textarea,
+  select {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input,
+  textarea,
+  select {
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease,
+      background-color 160ms ease;
+  }
+
+  main [data-slot="card"] {
+    border-color: color-mix(in oklch, var(--border) 92%, var(--foreground) 8%);
+    transition:
+      border-color 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  @media (hover: hover) {
+    main [data-slot="card"]:hover {
+      border-color: color-mix(in oklch, var(--border) 68%, var(--primary) 32%);
+      box-shadow:
+        0 2px 5px color-mix(in oklch, var(--foreground) 3%, transparent),
+        0 10px 28px color-mix(in oklch, var(--foreground) 5%, transparent);
+    }
+  }
+}
+
+/* Keep section navigation clear of the sticky dashboard header. */
+main section[id^="section-"] {
+  scroll-margin-top: 6.5rem;
+}
+
+/* Avoid hover motion for users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  main [data-slot="card"] {
+    transition: none;
+  }
+}

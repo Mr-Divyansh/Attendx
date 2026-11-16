@@ -13,6 +13,7 @@ import { apiFetch } from '@/lib/api'
 import { usePolling } from '@/hooks/use-polling'
 import { toast } from 'sonner'
 import { useAuth } from '@/stores/auth-store'
+import { PortalImportPanel } from './portal-import-panel'
 import {
   Card,
   CardContent,
@@ -45,6 +46,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { Cable } from 'lucide-react'
 import {
   LayoutDashboard,
   GraduationCap,
@@ -193,6 +195,7 @@ const NAV: NavItem[] = [
   { id: 'subjects', label: 'Subjects', icon: BookOpen },
   { id: 'weekly', label: 'Weekly', icon: CalendarCheck },
   { id: 'monthly', label: 'Monthly', icon: GraduationCap },
+  { id: 'portal-sync', label: 'Portal Sync', icon: Cable },
 ]
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -922,6 +925,9 @@ export function StudentDashboard() {
             </CardContent>
           </Card>
         )}
+        <section id="section-portal-sync" className="scroll-mt-24">
+          <PortalImportPanel storageKey={user?.email || 'student'} />
+        </section>
       </div>
     </DashboardShell>
   )
