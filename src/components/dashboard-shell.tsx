@@ -66,7 +66,7 @@ export function DashboardShell({
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
-      <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r bg-sidebar">
+      <aside className="hidden lg:flex w-[272px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar/95">
         <div className="h-16 flex items-center gap-2 px-5 border-b">
           <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border bg-card/80 shadow-sm">
             <Image
@@ -88,9 +88,10 @@ export function DashboardShell({
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                aria-current={active === item.id ? 'page' : undefined}
+                className={`group w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
                   active === item.id
-                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    ? 'bg-primary/10 text-primary ring-1 ring-primary/15 shadow-sm'
                     : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                 }`}
               >
@@ -115,7 +116,7 @@ export function DashboardShell({
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="min-h-16 border-b glass sticky top-0 z-30 flex items-center justify-between gap-3 px-4 md:px-6 py-3">
+        <header className="min-h-16 border-b border-border/70 glass sticky top-0 z-30 flex items-center justify-between gap-3 px-4 md:px-7 xl:px-8 py-3 shadow-sm shadow-black/[0.02]">
           <div className="flex items-center gap-3 min-w-0">
             <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
               <SheetTrigger asChild>
@@ -137,7 +138,8 @@ export function DashboardShell({
                       <button
                         key={item.id}
                         onClick={() => { onNavigate(item.id); setMobileNavOpen(false) }}
-                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${active === item.id ? 'bg-primary text-primary-foreground' : 'hover:bg-sidebar-accent'}`}
+                        aria-current={active === item.id ? 'page' : undefined}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all duration-200 ${active === item.id ? 'bg-primary/10 text-primary ring-1 ring-primary/15' : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'}`}
                       >
                         <item.icon className="size-4" />
                         {item.label}
@@ -204,7 +206,7 @@ export function DashboardShell({
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-6 overflow-x-hidden page-enter">{children}</main>
+        <main className="mx-auto w-full max-w-[1600px] flex-1 overflow-x-hidden p-4 md:p-7 xl:p-8 page-enter">{children}</main>
         <SiteFooter compact />
       </div>
     </div>
