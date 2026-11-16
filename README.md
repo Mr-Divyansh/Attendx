@@ -22,6 +22,13 @@ Built with Next.js 16, TypeScript, Prisma, PostgreSQL, Tailwind CSS, and shadcn/
 - See joined classrooms, the responsible teacher, and only the schedules belonging to those classrooms.
 - View teacher-recorded attendance and attendance summaries.
 - Attendance records are read-only for students.
+- Import personal attendance exports from an external college portal using the browser-local CSV importer. Imported records remain separate from AttendX classroom records.
+
+### External portal import
+
+- Open the Student Dashboard and select **Portal Sync**.
+- Import a CSV with **Subject**, **Date**, and **Status** columns. See [the portal import guide](docs/portal-import.md) for accepted values and storage details.
+- Automatic Scholars24 sync is not enabled until the college/vendor provides documented, student-authorized read-only API access.
 
 ### Admin and personal tracker
 
