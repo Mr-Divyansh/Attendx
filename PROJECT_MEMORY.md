@@ -63,6 +63,7 @@ AttendX is an attendance-management application for schools, colleges, and unive
 
 * **Teacher panel**: Create classrooms, academic structure (semester/class, section, subject), join codes, timetable entries, mark/load/correct attendance (7-day edit window), view/remove classroom members.
 * **Student panel**: Join multiple classrooms (no duplicate memberships), view joined classrooms/schedules, view teacher-recorded attendance (read-only), summaries and analytics.
+* **External portal import**: Student Dashboard has a browser-local CSV importer for personal attendance exports. Imported records stay separate from teacher-marked records, are scoped in localStorage by student account, and can be exported as JSON. No Scholars24 API integration is enabled until official read-only API documentation and credentials are verified.
 * **Admin panel**: User/academic-catalogue CRUD, stats overview, attendance CSV export, JSON backup, password reset, timetable management, departments/semesters/sections management.
 * **Personal tracker**: Independent isolated attendance tracking — register/login, today's quick-mark, weekly/monthly charts, attendance predictor, goal setting (75/80/85/90%), timetable manager, settings (dark mode, password change, delete account).
 * **Authentication**: Email/password (scrypt hashing), Google OAuth, email OTP verification (registration, password reset, email change), session cookies, CSRF protection, rate limiting.
@@ -114,6 +115,13 @@ npm run lint               # eslint
 ```
 
 ### Change Log
+
+#### 2026-11-16 — External portal CSV import and UI polish
+
+* Added a Student Dashboard Portal Sync section with CSV parsing for Subject, Date, and Status columns, subject summaries, recent records, JSON export, and local-browser persistence.
+* Kept imported portal attendance separate from teacher-marked AttendX data; the importer does not alter classroom attendance records.
+* Documented the Scholars24 integration boundary: automatic sync requires official student-authorized read-only API documentation and credentials. Portal passwords, cookies, and session tokens are not collected.
+* Refined shared dashboard navigation, responsive content spacing, card surfaces, and control interaction styling.
 
 #### 2026-08-18
 
