@@ -90,8 +90,8 @@ function normalizeDate(value: string): string | null {
   const input = value.trim()
   if (!input) return null
 
-  const iso = /^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})$/.exec(input)
-  const indian = /^(\\d{1,2})[-/](\\d{1,2})[-/](\\d{4})$/.exec(input)
+  const iso = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.exec(input)
+  const indian = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/.exec(input)
   let year: number
   let month: number
   let day: number
@@ -126,7 +126,7 @@ function parseAttendanceCsv(text: string, fileName: string): {
   skipped: number
   duplicates: number
 } {
-  const rows = parseCsvRows(text.replace(/^\\uFEFF/, ''))
+  const rows = parseCsvRows(text.replace(/^\uFEFF/, ''))
   if (rows.length < 2) throw new Error('The CSV is empty or has no attendance rows.')
 
   const subjectAliases = ['subject', 'subjectname', 'course', 'coursename', 'paper']
@@ -158,7 +158,7 @@ function parseAttendanceCsv(text: string, fileName: string): {
       skipped += 1
       return
     }
-    const duplicateKey = `${date}| ${subject.toLocaleLowerCase()}|${status}`
+    const duplicateKey = `${date}|${subject.toLocaleLowerCase()}|${status}`
     if (seen.has(duplicateKey)) {
       duplicates += 1
       return
