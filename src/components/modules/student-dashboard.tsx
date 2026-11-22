@@ -647,7 +647,7 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
               <CardContent>
                 {loading ? (
                   <Skeleton className="h-64 w-full rounded-lg" />
-                ) : weekly.length === 0 ? (
+                ) : (weekly.length === 0 || weekly.every((row) => row.total === 0)) ? (
                   <EmptyState
                     icon={CalendarCheck}
                     title="No records this week"
@@ -743,7 +743,7 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
               <CardContent>
                 {loading ? (
                   <Skeleton className="h-64 w-full rounded-lg" />
-                ) : monthly.length === 0 ? (
+                ) : (monthly.length === 0 || monthly.every((row) => row.total === 0)) ? (
                   <EmptyState
                     icon={GraduationCap}
                     title="Not enough data"
