@@ -15,26 +15,11 @@ export type PortalAdapterStatus = {
 }
 
 export function getScholars24AdapterStatus(): PortalAdapterStatus {
-  const hasAuthorizedStudentAdapter =
-    process.env.SCHOLARS24_STUDENT_SCOPED_API === 'true' &&
-    Boolean(process.env.SCHOLARS24_API_BASE_URL?.trim()) &&
-    Boolean(process.env.SCHOLARS24_API_BEARER_TOKEN?.trim())
-
-  if (!hasAuthorizedStudentAdapter) {
-    return {
-      available: false,
-      status: 'NOT_CONFIGURED',
-      code: 'STUDENT_AUTHORIZATION_MISSING',
-      message:
-        'No documented, student-authorized Scholars24 API grant is configured. CSV import remains available.',
-    }
-  }
-
   return {
-    available: true,
-    status: 'READY',
+    available: false,
+    status: 'NOT_CONFIGURED',
     code: 'STUDENT_AUTHORIZATION_MISSING',
     message:
-      'The server adapter is configured, but the normalized Scholars24 response contract must be supplied before live synchronization.',
+      'No documented, student-authorized Scholars24 API grant is configured. CSV import remains available.',
   }
 }

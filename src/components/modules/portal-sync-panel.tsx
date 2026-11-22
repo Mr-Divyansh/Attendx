@@ -292,7 +292,9 @@ export function PortalSyncPanel() {
                     ? 'CSV fallback active'
                     : portalStatus?.connection.status === 'READY'
                       ? 'Authorized API ready'
-                      : 'Live connection pending'}
+                      : portalStatus?.connection.status === 'DISCONNECTED'
+                        ? 'Disconnected'
+                        : 'Live connection pending'}
                 </p>
                 <Badge variant={portalStatus?.adapter.available ? 'default' : 'secondary'} className="text-[11px]">
                   {portalStatus?.adapter.available ? 'Configured' : 'Authorization required'}
@@ -304,8 +306,8 @@ export function PortalSyncPanel() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 md:justify-end">
-            <Button variant="outline" onClick={connectPortal} disabled={busy || loading}><Cable className="mr-2 size-4" />Connect</Button>
-            <Button onClick={syncPortal} disabled={busy || loading}>
+            <Button variant="outline" onClick={connectPortal} disabled={busy || loading || !portalStatus?.adapter.available}><Cable className="mr-2 size-4" />Connect</Button>
+            <Button onClick={syncPortal} disabled={busy || loading || !portalStatus?.adapter.available}>
               {busy ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}
               {busy ? 'Checking…' : 'Sync now'}
             </Button>
@@ -313,11 +315,6 @@ export function PortalSyncPanel() {
               <Button variant="ghost" onClick={disconnectPortal} disabled={busy}><Unplug className="mr-2 size-4" />Disconnect</Button>
             )}
           </div>
-          {busy && (
-            <div className="h-1 overflow-hidden rounded-full bg-muted md:col-span-2">
-              <div className="h-full w-2/3 animate-pulse rounded-full bg-primary" />
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -334,7 +331,7 @@ export function PortalSyncPanel() {
               <CloudUpload className="size-5 text-primary" />
             </span>
             <div>
-              <p className="font-medium">Drop or choose an attendance report</p>
+              <p className="font-medium">Choose an attendance report</p>
               <p className="mt-1 text-sm text-muted-foreground">Subject, Date and Status · CSV · 3 MB maximum</p>
             </div>
             <input ref={inputRef} type="file" accept=".csv,text/csv" className="sr-only" onChange={handleFileChange} aria-label="Choose attendance CSV" />
