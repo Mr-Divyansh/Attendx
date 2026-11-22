@@ -7,7 +7,11 @@ AttendX currently supports a browser-local CSV import for a student's own attend
 - Open the [Scholars24 Student View](https://portal-hd.scholars24.in/Student/Student/StudentView), sign in on the official portal yourself, and export/download an attendance report if the portal offers that option.
 - In AttendX Student Dashboard, open **Portal Sync** and choose the CSV file.
 - The CSV must have columns that can be identified as **Subject**, **Date**, and **Status**.
-- Dates in ISO format (YYYY-MM-DD) and Indian format (DD-MM-YYYY or DD/MM/YYYY) are accepted.
+- Dates in ISO format (YYYY-MM-DD) and Indian format (DD-MM-YYYY or DD/MM/YYYY) are accepted; invalid calendar dates are rejected.
+- Quoted CSV values, commas and line breaks inside quoted fields, escaped double quotes, CRLF files, and UTF-8 BOM are supported.
+- Common header aliases are accepted (for example Subject Name, Course, Class Date, Attendance Date, Attendance Status).
+- Exact duplicate subject/date/status rows are ignored and reported separately from invalid rows.
+- The import preview shows sample rows and asks for confirmation before replacing the current browser-local import.
 - Status values accepted: Present/P, Absent/A, and Late/L.
 - Imported records remain separate from teacher-marked AttendX records.
 - Data is stored in browser localStorage for the signed-in student on that device. It is not uploaded to the AttendX server and is not automatically shared across devices.
