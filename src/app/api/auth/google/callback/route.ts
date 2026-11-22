@@ -9,6 +9,7 @@ import {
 } from '@/lib/auth'
 import {
   exchangeGoogleCode,
+  getGoogleProviderErrorCategory,
   getOAuthEnvironment,
   getGoogleOAuthConfig,
   logGoogleOAuthDiagnostic,
@@ -158,10 +159,14 @@ export async function GET(req: NextRequest) {
   try {
     const config = getGoogleOAuthConfig(req)
     const appUrl = config.appUrl
-    logGoogleOAuthDiagnostic('callback_received', config.callbackUrl)
     const code = req.nextUrl.searchParams.get('code')
     const state = req.nextUrl.searchParams.get('state')
     const oauthError = req.nextUrl.searchParams.get('error')
+    logGoogleOAuthDiagnostic('callback_received', config.callbackUrl, undefined, {
+      codePresent: Boolean(code),
+      statePresent: Boolean(state),
+      providerErrorCategory: getGoogleProviderErrorCategory(oauthError) ?? 'none',
+    })
 
     const store = await cookies()
     const cookieState = store.get(OAUTH_STATE_COOKIE)?.value
@@ -172,8 +177,18 @@ export async function GET(req: NextRequest) {
       cookieState,
       providerError: oauthError,
     })
+    logGoogleOAuthDiagnostic(
+      'callback_validation',
+      config.callbackUrl,
+      validation.ok ? undefined : validation.error,
+      {
+        codePresent: Boolean(code),
+        statePresent: Boolean(state),
+        providerErrorCategory: getGoogleProviderErrorCategory(oauthError) ?? 'none',
+        stateValidation: validation.stateValidation,
+      }
+    )
     if (!validation.ok) {
-      logGoogleOAuthDiagnostic('callback_validation', config.callbackUrl, validation.error)
       return Response.redirect(`${appUrl}/?auth_error=${validation.error}`)
     }
 

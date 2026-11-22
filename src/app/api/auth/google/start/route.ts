@@ -24,6 +24,12 @@ export async function GET(req: NextRequest) {
 
     const nonce = crypto.randomUUID()
     const config = getGoogleOAuthConfig(req)
+    if (getOAuthEnvironment() === 'preview' && req.nextUrl.origin !== config.appUrl) {
+      const canonicalStartUrl = new URL('/api/auth/google/start', config.appUrl)
+      canonicalStartUrl.searchParams.set('role', role)
+      return Response.redirect(canonicalStartUrl, 307)
+    }
+
     logGoogleOAuthDiagnostic('initiation', config.callbackUrl)
     const state = signOAuthState({ role, nonce })
 
