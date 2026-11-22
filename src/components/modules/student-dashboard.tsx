@@ -119,7 +119,7 @@ type WeekRow = {
 type WeeklyResp = { week: WeekRow[] }
 
 type MonthRow = {
-  month: string
+  week: string
   start: string
   end: string
   attended: number
@@ -724,7 +724,7 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
               <CardHeader>
                 <CardTitle>Monthly Trend</CardTitle>
                 <CardDescription>
-                  Calendar-month attendance for the last six months, so each point represents a real month rather than a rolling week.
+                  Attendance for the current calendar month, grouped into calendar weeks. This gives a month-wide view while Weekly focuses on individual days.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -750,7 +750,7 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
                           vertical={false}
                         />
                         <XAxis
-                          dataKey="month"
+                          dataKey="week"
                           tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }}
                           tickLine={false}
                           axisLine={false}
