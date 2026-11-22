@@ -294,7 +294,7 @@ export function PortalSyncPanel() {
                       ? 'Authorized API ready'
                       : portalStatus?.connection.status === 'DISCONNECTED'
                         ? 'Disconnected'
-                        : 'Live connection pending'}
+                        : 'Live synchronization unavailable'}
                 </p>
                 <Badge variant={portalStatus?.adapter.available ? 'default' : 'secondary'} className="text-[11px]">
                   {portalStatus?.adapter.available ? 'Configured' : 'Authorization required'}
@@ -306,12 +306,16 @@ export function PortalSyncPanel() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 md:justify-end">
-            <Button variant="outline" onClick={connectPortal} disabled={busy || loading || !portalStatus?.adapter.available}><Cable className="mr-2 size-4" />Connect</Button>
+            {portalStatus?.adapter.available ? (
+              <Button variant="outline" onClick={connectPortal} disabled={busy || loading}><Cable className="mr-2 size-4" />Connect Scholars24</Button>
+            ) : (
+              <Button variant="outline" asChild><a href={PORTAL_URL} target="_blank" rel="noreferrer"><Cable className="mr-2 size-4" />Connect Scholars24</a></Button>
+            )}
             <Button onClick={syncPortal} disabled={busy || loading || !portalStatus?.adapter.available}>
               {busy ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}
-              {busy ? 'Checking…' : 'Sync now'}
+              {busy ? 'Checking…' : 'Get Attendance Data'}
             </Button>
-            {portalStatus?.connection.status !== 'NOT_CONFIGURED' && (
+            {(portalStatus?.connection.status === 'READY' || portalStatus?.connection.status === 'DISCONNECTED') && (
               <Button variant="ghost" onClick={disconnectPortal} disabled={busy}><Unplug className="mr-2 size-4" />Disconnect</Button>
             )}
           </div>
