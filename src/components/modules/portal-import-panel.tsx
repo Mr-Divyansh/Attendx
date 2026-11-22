@@ -45,27 +45,37 @@ const STORAGE_PREFIX = 'attendx:portal-import:v1:'
 const PORTAL_ATTENDANCE_URL =
   'https://portal-hd.scholars24.in/Student/Student/StudentView'
 
-function parseCsvLine(line: string): string[] {
-  const values: string[] = []
-  let current = ''
+function parseCsvRows(input: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = []
+  let cell = ''
   let quoted = false
 
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index]
-    if (char === '"' && line[index + 1] === '"' && quoted) {
-      current += '"'
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index]
+    if (char === '"' && quoted && input[index + 1] === '"') {
+      cell += '"'
       index += 1
     } else if (char === '"') {
       quoted = !quoted
     } else if (char === ',' && !quoted) {
-      values.push(current.trim())
-      current = ''
+      row.push(cell.trim())
+      cell = ''
+    } else if ((char === '\n' || char === '\r') && !quoted) {
+      if (char === '\r' && input[index + 1] === '\n') index += 1
+      row.push(cell.trim())
+      if (row.some((value) => value.length > 0)) rows.push(row)
+      row = []
+      cell = ''
     } else {
-      current += char
+      cell += char
     }
   }
-  values.push(current.trim())
-  return values
+
+  if (quoted) throw new Error('The CSV contains an unclosed quoted field.')
+  row.push(cell.trim())
+  if (row.some((value) => value.length > 0)) rows.push(row)
+  return rows
 }
 
 function normalizeHeader(value: string): string {
@@ -80,28 +90,27 @@ function normalizeDate(value: string): string | null {
   const input = value.trim()
   if (!input) return null
 
-  const iso = input.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+  const iso = /^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})$/.exec(input)
+  const indian = /^(\\d{1,2})[-/](\\d{1,2})[-/](\\d{4})$/.exec(input)
+  let year: number
+  let month: number
+  let day: number
+
   if (iso) {
-    const year = iso[1]
-    const month = iso[2].padStart(2, '0')
-    const day = iso[3].padStart(2, '0')
-    return year + '-' + month + '-' + day
+    year = Number(iso[1])
+    month = Number(iso[2])
+    day = Number(iso[3])
+  } else if (indian) {
+    day = Number(indian[1])
+    month = Number(indian[2])
+    year = Number(indian[3])
+  } else {
+    return null
   }
 
-  // Indian portal exports commonly use DD-MM-YYYY or DD/MM/YYYY.
-  const indian = input.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/)
-  if (indian) {
-    const day = Number(indian[1])
-    const monthNumber = Number(indian[2])
-    if (day < 1 || day > 31 || monthNumber < 1 || monthNumber > 12) return null
-    return indian[3] + '-' + indian[2].padStart(2, '0') + '-' + indian[1].padStart(2, '0')
-  }
-
-  const parsed = new Date(input)
-  if (Number.isNaN(parsed.getTime())) return null
-  return parsed.getFullYear() + '-' +
-    String(parsed.getMonth() + 1).padStart(2, '0') + '-' +
-    String(parsed.getDate()).padStart(2, '0')
+  const date = new Date(Date.UTC(year, month - 1, day))
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
 function normalizeStatus(value: string): AttendanceStatus | null {
@@ -115,29 +124,21 @@ function normalizeStatus(value: string): AttendanceStatus | null {
 function parseAttendanceCsv(text: string, fileName: string): {
   records: ImportedRecord[]
   skipped: number
+  duplicates: number
 } {
-  const rows = text
-    .replace(/^\uFEFF/, '')
-    .split(/\r?\n/)
-    .map(parseCsvLine)
-    .filter((row) => row.some((cell) => cell.trim().length > 0))
-
+  const rows = parseCsvRows(text.replace(/^\\uFEFF/, ''))
   if (rows.length < 2) throw new Error('The CSV is empty or has no attendance rows.')
 
   const subjectAliases = ['subject', 'subjectname', 'course', 'coursename', 'paper']
   const dateAliases = ['date', 'classdate', 'attendancedate', 'markedon']
   const statusAliases = ['status', 'attendance', 'attendancestatus', 'presentabsent']
-
   const headerIndex = rows.findIndex((row) => {
     const headers = row.map(normalizeHeader)
-    return headers.some((h) => subjectAliases.includes(h)) &&
-      headers.some((h) => dateAliases.includes(h)) &&
-      headers.some((h) => statusAliases.includes(h))
+    return headers.some((header) => subjectAliases.includes(header)) &&
+      headers.some((header) => dateAliases.includes(header)) &&
+      headers.some((header) => statusAliases.includes(header))
   })
-
-  if (headerIndex < 0) {
-    throw new Error('Could not find Subject, Date and Status columns in this CSV.')
-  }
+  if (headerIndex < 0) throw new Error('Could not find Subject, Date and Status columns in this CSV.')
 
   const headers = rows[headerIndex]
   const subjectIndex = findColumn(headers, subjectAliases)
@@ -145,9 +146,11 @@ function parseAttendanceCsv(text: string, fileName: string): {
   const statusIndex = findColumn(headers, statusAliases)
   const importedAt = new Date().toISOString()
   const records: ImportedRecord[] = []
+  const seen = new Set<string>()
   let skipped = 0
+  let duplicates = 0
 
-  rows.slice(headerIndex + 1).forEach((row, index) => {
+  rows.slice(headerIndex + 1).forEach((row) => {
     const subject = row[subjectIndex]?.trim()
     const date = normalizeDate(row[dateIndex] ?? '')
     const status = normalizeStatus(row[statusIndex] ?? '')
@@ -155,8 +158,14 @@ function parseAttendanceCsv(text: string, fileName: string): {
       skipped += 1
       return
     }
+    const duplicateKey = `${date}| ${subject.toLocaleLowerCase()}|${status}`
+    if (seen.has(duplicateKey)) {
+      duplicates += 1
+      return
+    }
+    seen.add(duplicateKey)
     records.push({
-      id: date + '|' + subject.toLowerCase() + '|' + index,
+      id: duplicateKey,
       subject,
       date,
       status,
@@ -168,7 +177,7 @@ function parseAttendanceCsv(text: string, fileName: string): {
   if (records.length === 0) {
     throw new Error('No valid attendance rows were found. Check the CSV column names and values.')
   }
-  return { records, skipped }
+  return { records, skipped, duplicates }
 }
 
 export function PortalImportPanel({ storageKey }: { storageKey: string }) {
@@ -177,8 +186,8 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
   const [records, setRecords] = useState<ImportedRecord[]>([])
   const [loadedKey, setLoadedKey] = useState<string | null>(null)
   const [isImporting, setIsImporting] = useState(false)
-  const [lastImport, setLastImport] = useState<{ count: number; skipped: number } | null>(null)
-  const [pendingImport, setPendingImport] = useState<{ records: ImportedRecord[]; skipped: number; fileName: string } | null>(null)
+  const [lastImport, setLastImport] = useState<{ count: number; skipped: number; duplicates: number } | null>(null)
+  const [pendingImport, setPendingImport] = useState<{ records: ImportedRecord[]; skipped: number; duplicates: number; fileName: string } | null>(null)
 
   useEffect(() => {
     try {
@@ -236,11 +245,12 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
 
     setIsImporting(true)
     try {
+      if (!file.name.toLowerCase().endsWith('.csv')) throw new Error('Please select a .csv file.')
       const parsed = parseAttendanceCsv(await file.text(), file.name)
       const nextRecords = [...parsed.records].sort(
         (a, b) => b.date.localeCompare(a.date) || a.subject.localeCompare(b.subject),
       )
-      setPendingImport({ records: nextRecords, skipped: parsed.skipped, fileName: file.name })
+      setPendingImport({ records: nextRecords, skipped: parsed.skipped, duplicates: parsed.duplicates, fileName: file.name })
       toast.success('CSV validated. Review the preview before replacing your imported records.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to import this CSV.')
@@ -260,7 +270,7 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
     )
     if (!confirmed) return
     setRecords(pendingImport.records)
-    setLastImport({ count: pendingImport.records.length, skipped: pendingImport.skipped })
+    setLastImport({ count: pendingImport.records.length, skipped: pendingImport.skipped, duplicates: pendingImport.duplicates })
     setPendingImport(null)
     toast.success(pendingImport.records.length + ' portal attendance rows replaced.')
   }
@@ -345,7 +355,7 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
                 </Button>
                 {lastImport && (
                   <p className="mt-3 text-xs text-muted-foreground">
-                    Last import: {lastImport.count} added · {lastImport.skipped} skipped
+                    Last import: {lastImport.count} imported · {lastImport.skipped} invalid · {lastImport.duplicates} duplicates ignored
                   </p>
                 )}
               </div>
@@ -355,7 +365,7 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
                 <div>
                   <p className="font-medium">Import preview</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {pendingImport.records.length} valid rows · {pendingImport.skipped} skipped · {pendingImport.fileName}
+                    {pendingImport.records.length} valid rows · {pendingImport.skipped} invalid rows · {pendingImport.duplicates} duplicates ignored · {pendingImport.fileName}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     This will replace only the portal-imported records saved in this browser.
