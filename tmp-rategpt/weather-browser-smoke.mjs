@@ -14,6 +14,7 @@ let passed = 0;
 function pass(label) {
   passed += 1;
   console.log("PASS " + label);
+  
 }
 
 try {
