@@ -63,6 +63,14 @@ The public document does not verify:
 - A verified response schema for real attendance rows.
 - A supported mapping from an AttendX student to a portal student/session.
 
+Additional blocking findings:
+
+- `POST /api/authentication/authenticate` accepts `user_name`, `password`, and `device_ID`, but the public Swagger does not identify where the bearer token is returned or how it is expired or refreshed.
+- `/api/v{version}/Student/GetAttendanceCountsBySemester` requires `session_guid`, but the public Swagger does not document how an authenticated student obtains or validates that student-owned `session_guid`.
+- `/api/v{version}/Attendance/GetLectureStudentList` is a lecture/student-list endpoint and is not verified as a read-only student attendance-history endpoint.
+- `/api/v{version}/ProfileAttendance/GetProfileInfo` is documented, but its `ResponseModel.data` is untyped and is not a verified identity-to-student mapping contract.
+- The Swagger's only detailed auth scheme is password-and-bearer; no OAuth consent, PKCE authorization-code, refresh-token, or student revocation contract is documented.
+
 AttendX therefore does not send passwords or cookies to `/api/authentication/authenticate`. The "Connect Scholars24" control opens the official portal login page only; it does not claim a successful connection or obtain an authorization grant. Automatic attendance synchronization is blocked until Scholars24 supplies the missing delegated authorization contract.
 
 ## Server environment contract

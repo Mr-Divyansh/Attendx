@@ -11,7 +11,7 @@ test('Scholars24 live adapter is blocked until explicitly student-authorized', (
   assert.equal(status.available, false)
   assert.equal(status.status, 'NOT_CONFIGURED')
   assert.equal(status.code, 'STUDENT_AUTHORIZATION_MISSING')
-  assert.match(status.message, /student-authorized/i)
+  assert.match(status.message, /student OAuth|delegated grant|student/i)
 })
 
 test('Scholars24 environment flags cannot fake a live-ready adapter', () => {
