@@ -118,7 +118,7 @@ type WeekRow = {
 type WeeklyResp = { week: WeekRow[] }
 
 type MonthRow = {
-  week: string
+  month: string
   start: string
   end: string
   attended: number
@@ -459,7 +459,8 @@ export function StudentDashboard() {
           </>
         )}
 
-        <section id="section-classrooms" hidden={active !== 'classrooms'}>
+        {active === 'classrooms' && (
+        <section id="section-classrooms">
           <Card>
             <CardHeader>
               <CardTitle>Classrooms</CardTitle>
@@ -526,9 +527,11 @@ export function StudentDashboard() {
             </CardContent>
           </Card>
         </section>
+        )}
 
         {/* Subject-wise bar chart */}
-        <section id="section-subjects" hidden={active !== 'subjects'}>
+        {active === 'subjects' && (
+        <section id="section-subjects">
           <Card>
             <CardHeader>
               <CardTitle>Subject-wise Attendance</CardTitle>
@@ -622,17 +625,18 @@ export function StudentDashboard() {
             </CardContent>
           </Card>
         </section>
+        )}
 
-        {/* Weekly + Monthly (two-column on lg) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Weekly + Monthly (separate route pages) */}
+        <>
           {/* Weekly */}
-          <section id="section-weekly" hidden={active !== 'weekly'}>
+          {active === 'weekly' && (
+          <section id="section-weekly">
             <Card className="h-full">
               <CardHeader>
                 <CardTitle>Weekly Report</CardTitle>
                 <CardDescription>
-                  Mon–Sun attendance for the current week. Stacked bars show
-                  present, late, and absent counts per day.
+                  Monday–Sunday attendance for the current week. The chart separates attended and missed recorded classes for each day.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -706,11 +710,10 @@ export function StudentDashboard() {
                           maxBarSize={48}
                         />
                         <Bar
-                          dataKey="total"
-                          stackId="b"
-                          name="Total periods"
+                          dataKey="missed"
+                          stackId="a"
+                          name="Missed"
                           fill={COLOR_ABSENT}
-                          fillOpacity={0.18}
                           maxBarSize={48}
                         />
                       </BarChart>
@@ -720,15 +723,16 @@ export function StudentDashboard() {
               </CardContent>
             </Card>
           </section>
+          )}
 
           {/* Monthly */}
-          <section id="section-monthly" hidden={active !== 'monthly'}>
+          {active === 'monthly' && (
+          <section id="section-monthly">
             <Card className="h-full">
               <CardHeader>
                 <CardTitle>Monthly Trend</CardTitle>
                 <CardDescription>
-                  Attendance percentage across the last 4 weeks (W1 = oldest, W4
-                  = current). A steady line above 75% keeps you in safe range.
+                  Calendar-month attendance for the last six months, so each point represents a real month rather than a rolling week.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -754,7 +758,7 @@ export function StudentDashboard() {
                           vertical={false}
                         />
                         <XAxis
-                          dataKey="week"
+                          dataKey="month"
                           tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }}
                           tickLine={false}
                           axisLine={false}
@@ -810,10 +814,12 @@ export function StudentDashboard() {
               </CardContent>
             </Card>
           </section>
-        </div>
+          )}
+        </>
 
         {/* Subject breakdown table */}
-        <section id="section-overview" hidden={active !== 'overview'}>
+        {active === 'overview' && (
+        <section id="section-overview">
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <div>
@@ -903,6 +909,7 @@ export function StudentDashboard() {
             </CardContent>
           </Card>
         </section>
+        )}
 
         {/* Summary footer card */}
         {active === 'overview' && !loading && stats && stats.counts.total > 0 && subjects.length > 0 && (
@@ -939,9 +946,11 @@ export function StudentDashboard() {
             </CardContent>
           </Card>
         )}
-        <section id="section-portal-sync" hidden={active !== 'portal-sync'}>
+        {active === 'portal-sync' && (
+        <section id="section-portal-sync">
           <PortalImportPanel storageKey={user?.email || 'student'} />
         </section>
+        )}
       </div>
     </DashboardShell>
   )
