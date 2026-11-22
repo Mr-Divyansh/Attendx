@@ -43,7 +43,7 @@ type SubjectSummary = {
 
 const STORAGE_PREFIX = 'attendx:portal-import:v1:'
 const PORTAL_ATTENDANCE_URL =
-  'https://portal-hd.scholars24.in/Student/Academic/StudentAttendance'
+  'https://portal-hd.scholars24.in/Student/Student/StudentView'
 
 function parseCsvLine(line: string): string[] {
   const values: string[] = []
