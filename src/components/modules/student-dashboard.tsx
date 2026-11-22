@@ -729,7 +729,7 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
               <CardHeader>
                 <CardTitle>Monthly Trend</CardTitle>
                 <CardDescription>
-                  Attendance for the current calendar month, grouped into calendar weeks. This gives a month-wide view while Weekly focuses on individual days.
+                  Attendance percentage across the last six calendar months. Each point is one complete month, while Weekly focuses on individual days.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -738,8 +738,8 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
                 ) : (monthly.length === 0 || monthly.every((row) => row.total === 0)) ? (
                   <EmptyState
                     icon={GraduationCap}
-                    title="Not enough data"
-                    description="At least one week of attendance is required to plot a monthly trend."
+                    title="No monthly records yet"
+                    description="No marked attendance records were found in the last six calendar months."
                   />
                 ) : (
                   <div className="h-64 w-full">
