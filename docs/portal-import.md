@@ -1,6 +1,6 @@
 # Scholars24 portal import
 
-AttendX currently supports a browser-local CSV import for a student's own attendance export.
+AttendX currently supports a account-backed CSV import for a student's own attendance export.
 
 ## Current behaviour
 
@@ -11,12 +11,23 @@ AttendX currently supports a browser-local CSV import for a student's own attend
 - Quoted CSV values, commas and line breaks inside quoted fields, escaped double quotes, CRLF files, and UTF-8 BOM are supported.
 - Common header aliases are accepted (for example Subject Name, Course, Class Date, Attendance Date, Attendance Status).
 - Exact duplicate subject/date/status rows are ignored and reported separately from invalid rows.
-- The import preview shows sample rows and asks for confirmation before replacing the current browser-local import.
+- The import preview shows sample rows and asks for confirmation before replacing the current account-backed import.
 - Status values accepted: Present/P, Absent/A, and Late/L.
 - Imported records remain separate from teacher-marked AttendX records.
-- Data is stored in browser localStorage for the signed-in student on that device. It is not uploaded to the AttendX server and is not automatically shared across devices.
+- Data is stored in browser the AttendX database for the signed-in student on that device. It is not uploaded to the AttendX server and is not automatically shared across devices.
 - Use **Export JSON** to keep a backup of imported records.
 
 ## Automatic integration
 
 No Scholars24 student API endpoint or student API credential has been verified for this repository. Do not collect portal passwords, cookies, or session tokens in AttendX. Automatic sync must only be implemented after the college/vendor supplies documented, student-authorized read-only API access (API key or OAuth), rate limits, and a supported data format. Until then, CSV import is the supported fallback.
+
+
+## Data storage and API
+
+The student-only endpoint `/api/student/portal-import` stores one current external import per signed-in student. It validates dates, subjects and attendance statuses, caps imports at 3,000 rows, removes duplicate rows, and replaces only the student's previous external import in a database transaction. It never writes to the official AttendX `Attendance` table.
+
+- `GET` returns the signed-in student's latest import.
+- `POST` replaces that student's external import after CSRF and role checks.
+- `DELETE` clears only that student's external import.
+
+Direct Scholars24 authentication/session synchronization is not implemented yet. The portal login and authenticated data endpoints have not been verified, so AttendX must not collect or retain a Scholars24 password or session cookie. The CSV importer remains the supported fallback while a vendor-approved integration method is confirmed.
