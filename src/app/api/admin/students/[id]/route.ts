@@ -10,6 +10,8 @@ import {
   assertCsrf,
   handleRouteError,
 } from '@/lib/auth'
+import { validatePasswordPolicy } from '@/lib/security'
+import { sendPasswordChangedNotification } from '@/lib/email'
 
 export const runtime = 'nodejs'
 
@@ -37,6 +39,17 @@ export async function PUT(
     })
     if (!student) return errorResponse('Student not found', 404)
 
+    if (body.password !== undefined && typeof body.password !== 'string') {
+      return errorResponse('Password must be text.', 400)
+    }
+    if (body.password) {
+      const policy = validatePasswordPolicy(body.password, {
+        email: body.email?.trim().toLowerCase() || student.user.email,
+        name: body.fullName?.trim() || student.fullName,
+      })
+      if (!policy.ok) return errorResponse(policy.reason, 400)
+    }
+
     if (body.email && body.email.trim().toLowerCase() !== student.user.email) {
       const newEmail = body.email.trim().toLowerCase()
       const clash = await db.user.findUnique({ where: { email: newEmail } })
@@ -50,13 +63,29 @@ export async function PUT(
     }
 
     if (body.password) {
-      if (body.password.length < 6) {
-        return errorResponse('Password must be at least 6 characters', 400)
-      }
-      await db.user.update({
-        where: { id: student.userId },
-        data: { passwordHash: hashPassword(body.password) },
+      const password = body.password
+      const now = new Date()
+      await db.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: student.userId },
+          data: {
+            passwordHash: hashPassword(password),
+            securityVersion: { increment: 1 },
+            passwordChangedAt: now,
+          },
+        })
+        await tx.passwordResetToken.updateMany({
+          where: { userId: student.userId, usedAt: null },
+          data: { usedAt: now },
+        })
       })
+      try {
+        await sendPasswordChangedNotification(body.email?.trim().toLowerCase() || student.user.email)
+      } catch (error) {
+        console.error('[admin/students] password-change notification delivery failed', {
+          errorType: error instanceof Error ? error.name : 'unknown',
+        })
+      }
     }
 
     if (body.rollNo && body.rollNo !== student.rollNo) {

@@ -34,6 +34,7 @@ type SessionPayload = {
   role: SessionUser['role']
   issuedAt: number
   expiresAt: number
+  securityVersion?: number
   // a simple HMAC signature to prevent tampering
   sig: string
 }
@@ -103,11 +104,17 @@ export async function createCollegeSession(user: {
   email: string
   role: SessionUser['role']
 }) {
+  const account = await db.user.findUnique({
+    where: { id: user.id },
+    select: { securityVersion: true },
+  })
+  if (!account) throw new AuthError('Account not found', 404)
   const token = encodePayload({
     id: user.id,
     role: user.role,
     issuedAt: Date.now(),
     expiresAt: Date.now() + SESSION_TTL * 1000,
+    securityVersion: account.securityVersion,
   })
   const store = await cookies()
   store.set(SESSION_COOKIE, token, {
@@ -121,11 +128,17 @@ export async function createCollegeSession(user: {
 
 /** Create a session cookie for a personal-mode user. */
 export async function createPersonalSession(user: { id: string }) {
+  const account = await db.personalUser.findUnique({
+    where: { id: user.id },
+    select: { securityVersion: true },
+  })
+  if (!account) throw new AuthError('Account not found', 404)
   const token = encodePayload({
     id: user.id,
     role: 'PERSONAL',
     issuedAt: Date.now(),
     expiresAt: Date.now() + SESSION_TTL * 1000,
+    securityVersion: account.securityVersion,
   })
   const store = await cookies()
   store.set(SESSION_COOKIE, token, {
@@ -155,7 +168,7 @@ export async function getSession(): Promise<SessionUser | null> {
       where: { id: payload.id },
       include: { settings: true },
     })
-    if (!pu) return null
+    if (!pu || pu.securityVersion !== (payload.securityVersion ?? 0)) return null
     return {
       id: pu.id,
       email: pu.username,
@@ -171,7 +184,7 @@ export async function getSession(): Promise<SessionUser | null> {
     where: { id: payload.id },
     include: { admin: true, teacher: true, student: true },
   })
-  if (!u || u.disabled) return null
+  if (!u || u.disabled || u.securityVersion !== (payload.securityVersion ?? 0)) return null
   const base: SessionUser = {
     id: u.id,
     email: u.email,

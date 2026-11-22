@@ -47,6 +47,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/password-input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
@@ -1280,7 +1281,7 @@ function HistoryView() {
 // Settings view
 // ═══════════════════════════════════════════════════════════
 function SettingsView() {
-  const { user, logout, refresh } = useAuth()
+  const { user, logout, refresh, setUser, setCsrf } = useAuth()
   const { setTheme } = useTheme()
   const router = useRouter()
   const [settings, setSettings] = useState<Settings | null>(null)
@@ -1374,8 +1375,12 @@ function SettingsView() {
       toast.error('New passwords do not match')
       return
     }
-    if (pw.next.length < 6) {
-      toast.error('New password must be at least 6 characters')
+    if (pw.next.length < 12) {
+      toast.error('New password must be at least 12 characters.')
+      return
+    }
+    if (pw.next.length > 128) {
+      toast.error('New password must be at most 128 characters.')
       return
     }
     setPwSaving(true)
@@ -1385,10 +1390,14 @@ function SettingsView() {
         body: JSON.stringify({
           currentPassword: pw.current,
           newPassword: pw.next,
+          confirm: pw.confirm,
         }),
       })
-      toast.success('Password changed')
       setPw({ current: '', next: '', confirm: '' })
+      setUser(null)
+      setCsrf(null)
+      toast.success('Password updated. Sign in again to continue.')
+      router.replace('/')
     } catch (e) {
       toast.error((e as Error).message || 'Failed to change password')
     } finally {
@@ -1631,14 +1640,13 @@ function SettingsView() {
             <KeyRound className="size-4" />
             Change Password
           </CardTitle>
-          <CardDescription>Use at least 6 characters.</CardDescription>
+          <CardDescription>Use a unique 12–128 character password that meets AttendX security requirements.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="cur-pw">Current password</Label>
-            <Input
+            <PasswordInput
               id="cur-pw"
-              type="password"
               value={pw.current}
               onChange={(e) => setPw({ ...pw, current: e.target.value })}
               autoComplete="current-password"
@@ -1647,9 +1655,8 @@ function SettingsView() {
           <div className="grid sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="new-pw">New password</Label>
-              <Input
+              <PasswordInput
                 id="new-pw"
-                type="password"
                 value={pw.next}
                 onChange={(e) => setPw({ ...pw, next: e.target.value })}
                 autoComplete="new-password"
@@ -1657,14 +1664,16 @@ function SettingsView() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="conf-pw">Confirm new</Label>
-              <Input
+              <PasswordInput
                 id="conf-pw"
-                type="password"
                 value={pw.confirm}
                 onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
                 autoComplete="new-password"
               />
             </div>
+            <p className="text-xs text-muted-foreground">
+              Include uppercase and lowercase letters, a number, and a symbol. Avoid your name, email, and common passwords.
+            </p>
           </div>
           <div className="flex justify-end">
             <Button onClick={handleChangePassword} disabled={pwSaving}>

@@ -8,6 +8,7 @@ import { MasterAdminDashboard } from '@/components/modules/master-admin-dashboar
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/password-input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { apiFetch } from '@/lib/api'
@@ -87,13 +88,18 @@ export default function AdminPanelPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="admin-password">Password</Label>
-                <Input
+                <PasswordInput
                   id="admin-password"
-                  type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
                   required
                 />
+              </div>
+              <div className="-mt-2 flex justify-end">
+                <a href="/forgot-password?accountType=college" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+                  Forgot password?
+                </a>
               </div>
               <Button className="w-full h-11" disabled={loading}>
                 {loading ? 'Signing in…' : 'Continue to admin dashboard'}

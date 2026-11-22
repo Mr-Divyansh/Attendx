@@ -16,6 +16,10 @@ const PASSWORD_DENYLIST = new Set([
   'aaaaaa', 'aaaaaaa', 'abcdef', 'abcdefg', '11111111', '00000000',
   '123123123', '11223344', '987654321', 'zaq12wsx', 'p@ssw0rd',
 ])
+const normalizePassword = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
+const PASSWORD_DENYLIST_NORMALIZED = new Set(
+  [...PASSWORD_DENYLIST].map((password) => normalizePassword(password))
+)
 
 const MIN_PASSWORD_LENGTH = 12
 const COMPLEXITY_RULES = [
@@ -50,7 +54,7 @@ export function validatePasswordPolicy(
   }
 
   const lower = password.toLowerCase()
-  if (PASSWORD_DENYLIST.has(lower)) {
+  if (PASSWORD_DENYLIST.has(lower) || PASSWORD_DENYLIST_NORMALIZED.has(normalizePassword(password))) {
     return { ok: false, reason: 'That password is too common. Choose a stronger one.' }
   }
 
@@ -66,10 +70,12 @@ export function validatePasswordPolicy(
   // Reject passwords containing the user's email local-part or full name
   // (case-insensitive, min 4-char substring) to stop trivial credential reuse.
   if (context) {
-    const emailLocal = context.email?.split('@')[0]?.toLowerCase()
-    const name = context.name?.toLowerCase()
+    const normalizedPassword = normalizePassword(password)
+    const emailLocal = context.email?.split('@')[0]
+    const name = context.name
     for (const part of [emailLocal, name]) {
-      if (part && part.length >= 4 && lower.includes(part)) {
+      const normalizedPart = part ? normalizePassword(part) : ''
+      if (normalizedPart.length >= 4 && normalizedPassword.includes(normalizedPart)) {
         return {
           ok: false,
           reason: 'Password must not contain your email or name.',

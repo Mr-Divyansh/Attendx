@@ -15,6 +15,7 @@ import { usePolling } from '@/hooks/use-polling'
 import { toast } from 'sonner'
 import { useAuth } from '@/stores/auth-store'
 import { PortalSyncPanel } from './portal-sync-panel'
+import { AccountSecurityPanel } from './account-security-panel'
 import {
   Card,
   CardContent,
@@ -203,13 +204,14 @@ const NAV: NavItem[] = [
   { id: 'weekly', label: 'Weekly', icon: CalendarCheck },
   { id: 'monthly', label: 'Monthly', icon: GraduationCap },
   { id: 'portal-sync', label: 'Portal Sync', icon: Cable },
+  { id: 'security', label: 'Security', icon: ShieldCheck },
 ]
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function StudentDashboard({ page = 'overview' }: { page?: string }) {
   const { user } = useAuth()
   const router = useRouter()
-  const validPages = ['overview', 'classrooms', 'subjects', 'weekly', 'monthly', 'portal-sync']
+  const validPages = ['overview', 'classrooms', 'subjects', 'weekly', 'monthly', 'portal-sync', 'security']
   const active = validPages.includes(page) ? page : 'overview'
 
   const [stats, setStats] = useState<StatsResp | null>(null)
@@ -1026,6 +1028,7 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
           <PortalSyncPanel />
         </section>
         )}
+        {active === 'security' && <AccountSecurityPanel />}
       </div>
     </DashboardShell>
   )
