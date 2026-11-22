@@ -8,6 +8,8 @@ import {
   parseBody,
   requireRole,
 } from '@/lib/auth'
+import { getClientIp } from '@/lib/authz'
+import { rateLimit, RULES } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -64,6 +66,11 @@ export async function POST(req: NextRequest) {
     await assertCsrf(req)
     const session = await requireRole('STUDENT')
     if (!session.studentId) return errorResponse('Student profile missing', 403)
+    await rateLimit({
+      ip: getClientIp(req),
+      identifier: `portal-import:${session.studentId}`,
+      rule: RULES.portal,
+    })
 
     const body = await parseBody<{ records?: ImportedRow[]; source?: string }>(req)
     if (!Array.isArray(body.records) || body.records.length < 1 || body.records.length > 3000) {
@@ -120,6 +127,11 @@ export async function DELETE(req: NextRequest) {
     await assertCsrf(req)
     const session = await requireRole('STUDENT')
     if (!session.studentId) return errorResponse('Student profile missing', 403)
+    await rateLimit({
+      ip: getClientIp(req),
+      identifier: `portal-delete:${session.studentId}`,
+      rule: RULES.portal,
+    })
     await db.portalImport.deleteMany({ where: { studentId: session.studentId } })
     return json({ ok: true })
   } catch (error) {

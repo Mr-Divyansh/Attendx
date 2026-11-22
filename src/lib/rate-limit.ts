@@ -127,4 +127,5 @@ export const RULES = {
   otpSend: { name: 'otp:send', limit: 5, windowMs: 15 * 60 * 1000 },
   otpVerify: { name: 'otp:verify', limit: 10, windowMs: 15 * 60 * 1000 },
   contact: { name: 'contact:submit', limit: 3, windowMs: 60 * 60 * 1000 },
+  portal: { name: 'student:portal', limit: 30, windowMs: 10 * 60 * 1000 },
 } as const satisfies Record<string, RateLimitRule>

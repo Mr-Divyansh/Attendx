@@ -74,7 +74,7 @@ export async function GET() {
     const subjectMap = new Map<string, { subjectId: string; code: string; name: string; records: { status: string }[] }>()
     for (const record of currentRecords) {
       if (!record.subjectId || !record.subject) continue
-      const existing = subjectMap.get(record.subjectId) ?? {
+      const existing: { subjectId: string; code: string; name: string; records: { status: string }[] } = subjectMap.get(record.subjectId) ?? {
         subjectId: record.subject.id,
         code: record.subject.code,
         name: record.subject.name,
