@@ -116,7 +116,9 @@ type WeekRow = {
   pct: number
 }
 
-type WeeklyResp = { week: WeekRow[] }
+type ReportSummary = { present: number; late: number; absent: number; attended: number; total: number; pct: number | null }
+type ReportSubject = ReportSummary & { subjectId: string; code: string; name: string }
+type WeeklyResp = { week: WeekRow[]; summary?: ReportSummary; subjects?: ReportSubject[]; history?: (ReportSummary & { start: string; end: string; label: string })[] }
 
 type MonthRow = {
   month: string
@@ -124,10 +126,13 @@ type MonthRow = {
   end: string
   attended: number
   total: number
-  pct: number
+  pct: number | null
+  present?: number
+  late?: number
+  absent?: number
+  key?: string
 }
-
-type MonthlyResp = { months: MonthRow[] }
+type MonthlyResp = { months: MonthRow[]; summary?: ReportSummary; subjects?: ReportSubject[]; comparison?: { percentagePointChange: number | null } }
 
 type ClassroomRow = {
   id: string
@@ -210,7 +215,9 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
   const [stats, setStats] = useState<StatsResp | null>(null)
   const [subjects, setSubjects] = useState<SubjectRow[]>([])
   const [weekly, setWeekly] = useState<WeekRow[]>([])
+  const [weeklyReport, setWeeklyReport] = useState<WeeklyResp | null>(null)
   const [monthly, setMonthly] = useState<MonthRow[]>([])
+  const [monthlyReport, setMonthlyReport] = useState<MonthlyResp | null>(null)
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>([])
   const [joinCode, setJoinCode] = useState('')
   const [joining, setJoining] = useState(false)
@@ -269,9 +276,11 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
         setSubjects(sub.subjects ?? [])
       } else if (active === 'weekly') {
         const w = await apiFetch<WeeklyResp>('/api/student/weekly')
+        setWeeklyReport(w)
         setWeekly(w.week ?? [])
       } else if (active === 'monthly') {
         const m = await apiFetch<MonthlyResp>('/api/student/monthly')
+        setMonthlyReport(m)
         setMonthly(m.months ?? [])
       }
     } catch (e) {
@@ -624,6 +633,14 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
         </section>
         )}
 
+        {active === 'weekly' && weeklyReport?.summary && (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Weekly attendance" value={weeklyReport.summary.pct === null ? '—' : weeklyReport.summary.pct + '%'} icon={CalendarCheck} tone="primary" />
+            <StatCard label="Total classes" value={weeklyReport.summary.total} icon={CalendarDays} tone="chart-2" />
+            <StatCard label="Present + Late" value={weeklyReport.summary.attended} icon={CheckCircle2} tone="chart-5" />
+            <StatCard label="Absent" value={weeklyReport.summary.absent} icon={TriangleAlert} tone="chart-4" />
+          </div>
+        )}
         {/* Weekly + Monthly (separate route pages) */}
         <>
           {/* Weekly */}
@@ -722,6 +739,26 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
           </section>
           )}
 
+          {active === 'weekly' && weeklyReport?.subjects && weeklyReport.subjects.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Subject-wise weekly breakdown</CardTitle><CardDescription>Attendance marked during the current Monday–Sunday week.</CardDescription></CardHeader>
+              <CardContent className="space-y-2">
+                {weeklyReport.subjects.map((subject) => (
+                  <div key={subject.subjectId} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                    <div className="min-w-0"><p className="truncate font-medium">{subject.name}</p><p className="text-xs text-muted-foreground">{subject.attended} attended · {subject.absent} absent · {subject.late} late</p></div>
+                    <Badge variant="outline">{subject.pct === null ? '—' : subject.pct + '%'}</Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+          {active === 'weekly' && weeklyReport?.history && (
+            <Card><CardHeader><CardTitle>Recent weeks</CardTitle><CardDescription>Six calendar weeks, Monday through Sunday.</CardDescription></CardHeader>
+              <CardContent className="space-y-2">
+                {weeklyReport.history.map((item) => <div key={item.start} className="flex justify-between gap-3 border-b py-2 last:border-0"><span className="text-sm">{item.label}</span><span className="text-sm text-muted-foreground">{item.total ? item.pct + '% · ' + item.attended + '/' + item.total : 'No records'}</span></div>)}
+              </CardContent>
+            </Card>
+          )}
           {/* Monthly */}
           {active === 'monthly' && (
           <section id="section-monthly">
