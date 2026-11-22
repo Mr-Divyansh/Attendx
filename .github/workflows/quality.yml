@@ -30,6 +30,8 @@ jobs:
         run: npx prisma generate
       - name: TypeScript check
         run: npx tsc --noEmit
+      - name: Unit tests
+        run: npm test
       - name: ESLint
         run: npm run lint
       - name: Production build
