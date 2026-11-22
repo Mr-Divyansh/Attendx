@@ -119,7 +119,7 @@ type WeekRow = {
 type WeeklyResp = { week: WeekRow[] }
 
 type MonthRow = {
-  week: string
+  month: string
   start: string
   end: string
   attended: number
@@ -127,7 +127,7 @@ type MonthRow = {
   pct: number
 }
 
-type MonthlyResp = { weeks: MonthRow[] }
+type MonthlyResp = { months: MonthRow[] }
 
 type ClassroomRow = {
   id: string
@@ -272,7 +272,7 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
         setWeekly(w.week ?? [])
       } else if (active === 'monthly') {
         const m = await apiFetch<MonthlyResp>('/api/student/monthly')
-        setMonthly(m.weeks ?? [])
+        setMonthly(m.months ?? [])
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load this page')
@@ -763,7 +763,7 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
                           vertical={false}
                         />
                         <XAxis
-                          dataKey="week"
+                          dataKey="month"
                           tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }}
                           tickLine={false}
                           axisLine={false}
