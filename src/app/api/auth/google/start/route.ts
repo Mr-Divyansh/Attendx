@@ -30,7 +30,6 @@ export async function GET(req: NextRequest) {
       return Response.redirect(canonicalStartUrl, 307)
     }
 
-    logGoogleOAuthDiagnostic('initiation', config.callbackUrl)
     const state = signOAuthState({ role, nonce })
 
     const store = await cookies()
@@ -40,6 +39,11 @@ export async function GET(req: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       path: '/',
       maxAge: 600,
+    })
+
+    logGoogleOAuthDiagnostic('initiation', config.callbackUrl, undefined, {
+      requestHost: req.nextUrl.host,
+      stateCookieHost: req.nextUrl.host,
     })
 
     const params = new URLSearchParams({

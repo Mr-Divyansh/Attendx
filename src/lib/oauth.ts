@@ -65,6 +65,10 @@ export type OAuthDiagnosticCategory =
 type OAuthDiagnosticDetails = {
   codePresent?: boolean
   statePresent?: boolean
+  requestHost?: string
+  stateCookieHost?: string
+  stateCookiePresent?: boolean
+  stateMatchesQuery?: boolean
   providerErrorCategory?: GoogleProviderErrorCategory | 'none'
   stateValidation?: OAuthStateValidation
   tokenExchangeStatus?: number | null

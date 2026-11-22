@@ -102,6 +102,7 @@ Key details: `User.role` enum (`ADMIN | TEACHER | STUDENT`), session role also s
 ### Known Issues
 
 * Google recognizes the Production callback URI, but rejects the current Preview callback as `redirect_uri_mismatch`. Preview now uses the stable Vercel branch alias callback rather than a unique deployment hostname; that exact branch callback still needs to be added to the same Google OAuth client in Google Cloud Console. Actual Google-account sign-in remains unverified.
+* Recent Preview callback runtime records contained no `code`, no `state`, and no Google error parameter. Those records predate cookie-presence logging, so they cannot establish whether the host-only state cookie was sent. A live Google probe still rejects the stable branch callback before redirecting to AttendX.
 
 ### Important Commands
 
@@ -140,6 +141,7 @@ npm run lint               # eslint
 * Google rejects the active Preview callback with `redirect_uri_mismatch`; the exact active URI must be added to the Authorized redirect URIs for the configured OAuth client.
 * Vercel Deployment Protection is enabled for Preview and browser access requires SSO. Callback behavior under an authenticated SSO session and real Preview sign-in remain unverified.
 * Runtime logs confirmed a callback reached the Preview handler and was classified as `missing_code`, but the prior validator conflated absent `code` and absent `state`. Callback logs now record only parameter-presence booleans, a sanitized provider error category, and state validation status. Preview start requests canonicalize to the branch alias before setting the host-only state cookie.
+* Unauthenticated requests to the protected Preview start/callback paths redirect to Vercel SSO. A controlled callback probe confirmed the SSO return URL preserves `code` and `state`; Vercel protection remains enabled. Callback diagnostics now also record request/cookie host names and cookie presence/match booleans, never cookie contents.
 
 #### 2026-08-18
 

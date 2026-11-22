@@ -165,6 +165,7 @@ export async function GET(req: NextRequest) {
     logGoogleOAuthDiagnostic('callback_received', config.callbackUrl, undefined, {
       codePresent: Boolean(code),
       statePresent: Boolean(state),
+      requestHost: req.nextUrl.host,
       providerErrorCategory: getGoogleProviderErrorCategory(oauthError) ?? 'none',
     })
 
@@ -184,6 +185,9 @@ export async function GET(req: NextRequest) {
       {
         codePresent: Boolean(code),
         statePresent: Boolean(state),
+        requestHost: req.nextUrl.host,
+        stateCookiePresent: Boolean(cookieState),
+        stateMatchesQuery: Boolean(cookieState && state && cookieState === state),
         providerErrorCategory: getGoogleProviderErrorCategory(oauthError) ?? 'none',
         stateValidation: validation.stateValidation,
       }

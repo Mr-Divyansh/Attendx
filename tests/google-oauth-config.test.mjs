@@ -5,6 +5,7 @@ import {
   getGoogleProviderErrorCategory,
   getGoogleOAuthConfig,
   GoogleTokenExchangeError,
+  logGoogleOAuthDiagnostic,
   OAuthConfigurationError,
   signOAuthState,
   validateGoogleOAuthCallback,
@@ -217,6 +218,54 @@ test('provider error logging categories never preserve unknown provider text', (
   assert.equal(getGoogleProviderErrorCategory('interaction_required'), 'interaction_required')
   assert.equal(getGoogleProviderErrorCategory('provider-detail-with-sensitive-data'), 'other')
   assert.equal(getGoogleProviderErrorCategory(null), null)
+})
+
+test('a host-only state cookie missing on a different callback host is rejected', () => {
+  withOAuthEnvironment({
+    ATTENDX_SECRET: 'test-secret-with-at-least-32-characters',
+  }, () => {
+    const state = signOAuthState({ role: 'STUDENT', nonce: 'random-nonce' })
+    assert.deepEqual(validateGoogleOAuthCallback({
+      code: 'code',
+      state,
+      cookieState: undefined,
+      providerError: null,
+    }), { ok: false, error: 'invalid_state', stateValidation: 'missing_cookie' })
+  })
+})
+
+test('callback diagnostics report presence and validation only, never cookie values', () => {
+  const originalWarn = console.warn
+  let context
+
+  try {
+    console.warn = (_label, details) => { context = details }
+    logGoogleOAuthDiagnostic(
+      'callback_validation',
+      'https://attendx.example/api/auth/google/callback',
+      'missing_state',
+      {
+        requestHost: 'attendx.example',
+        codePresent: false,
+        statePresent: false,
+        stateCookiePresent: true,
+        stateMatchesQuery: false,
+        providerErrorCategory: 'none',
+        stateValidation: 'missing_state',
+      }
+    )
+
+    assert.equal(context.requestHost, 'attendx.example')
+    assert.equal(context.codePresent, false)
+    assert.equal(context.statePresent, false)
+    assert.equal(context.stateCookiePresent, true)
+    assert.equal(context.stateMatchesQuery, false)
+    assert.equal(context.stateValidation, 'missing_state')
+    assert.equal(JSON.stringify(context).includes('cookie-value'), false)
+    assert.equal(JSON.stringify(context).includes('authorization-code'), false)
+  } finally {
+    console.warn = originalWarn
+  }
 })
 
 test('token exchange diagnostics record status without logging secrets or codes', async () => {
