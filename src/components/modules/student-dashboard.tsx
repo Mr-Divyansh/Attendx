@@ -224,6 +224,7 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
   // rejections appear without a manual reload. Only the lightweight classroom
   // endpoint is polled — dashboards stats load on mount / explicit actions.
   const refreshClassrooms = useCallback(async () => {
+    if (active !== 'classrooms') return
     try {
       const c = await apiFetch<ClassroomsResp>('/api/student/classrooms')
       const next = c.classrooms ?? []
@@ -240,33 +241,45 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
     } catch {
       // Keep the last known-good state during a transient API failure.
     }
-  }, [])
+  }, [active])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [s, sub, w, m, c] = await Promise.all([
-        apiFetch<StatsResp>('/api/student/stats'),
-        apiFetch<SubjectsResp>('/api/student/subjects'),
-        apiFetch<WeeklyResp>('/api/student/weekly'),
-        apiFetch<MonthlyResp>('/api/student/monthly'),
-        apiFetch<ClassroomsResp>('/api/student/classrooms'),
-      ])
-      const rooms = c.classrooms ?? []
-      classroomsRef.current = rooms
-      initializedRef.current = true
-      setStats(s)
-      setSubjects(sub.subjects ?? [])
-      setWeekly(w.week ?? [])
-      setMonthly(m.weeks ?? [])
-      setClassrooms(rooms)
+      if (active === 'overview') {
+        const [s, sub] = await Promise.all([
+          apiFetch<StatsResp>('/api/student/stats'),
+          apiFetch<SubjectsResp>('/api/student/subjects'),
+        ])
+        setStats(s)
+        setSubjects(sub.subjects ?? [])
+      } else if (active === 'classrooms') {
+        const c = await apiFetch<ClassroomsResp>('/api/student/classrooms')
+        const rooms = c.classrooms ?? []
+        classroomsRef.current = rooms
+        initializedRef.current = true
+        setClassrooms(rooms)
+      } else if (active === 'subjects') {
+        const [s, sub] = await Promise.all([
+          apiFetch<StatsResp>('/api/student/stats'),
+          apiFetch<SubjectsResp>('/api/student/subjects'),
+        ])
+        setStats(s)
+        setSubjects(sub.subjects ?? [])
+      } else if (active === 'weekly') {
+        const w = await apiFetch<WeeklyResp>('/api/student/weekly')
+        setWeekly(w.week ?? [])
+      } else if (active === 'monthly') {
+        const m = await apiFetch<MonthlyResp>('/api/student/monthly')
+        setMonthly(m.weeks ?? [])
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load dashboard')
+      setError(e instanceof Error ? e.message : 'Failed to load this page')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [active])
 
   useEffect(() => {
     load()
