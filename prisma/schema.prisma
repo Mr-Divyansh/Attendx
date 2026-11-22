@@ -3,14 +3,14 @@
 //   Zone 1 — Identity & Auth (college): User, Admin, Teacher, Student
 //   Zone 2 — Academic Structure: Subject, Timetable, Attendance (+ Department, Semester, Section)
 //   Zone 3 — Personal Mode (isolated): PersonalUser, PersonalTimetable, PersonalAttendance, Notification, Setting
-// All passwords bcrypt-hashed. Audit columns on attendance (markedBy/markedAt).
+// Passwords are scrypt-hashed. Audit columns on attendance (markedBy/markedAt).
 
 generator client {
   provider = "prisma-client-js"
 }
 
 // IMPORTANT: this used to be "sqlite". SQLite writes to a local file on disk, and
-// Netlify's serverless functions get a fresh, throwaway filesystem on (almost) every
+// Vercel's serverless functions get a fresh, throwaway filesystem on (almost) every
 // request — so every signup/attendance-mark/etc. would vanish, and sometimes even the
 // file itself wouldn't exist yet, causing random 500s. That's very likely the root
 // cause of the live site "erroring out". Postgres is a real always-on database, so this
