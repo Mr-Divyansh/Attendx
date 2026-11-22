@@ -17,6 +17,7 @@ export async function DELETE(req: NextRequest) {
       rule: RULES.portal,
     })
     await db.$transaction([
+      db.portalImport.deleteMany({ where: { studentId: session.studentId } }),
       db.portalImportedAttendance.deleteMany({ where: { studentId: session.studentId } }),
       db.portalImportedSubject.deleteMany({ where: { studentId: session.studentId } }),
       db.portalImportedLecture.deleteMany({ where: { studentId: session.studentId } }),

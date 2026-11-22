@@ -477,6 +477,7 @@ model PortalImportedAttendance {
   updatedAt       DateTime @updatedAt
 
   @@unique([studentId, externalKey])
+  @@unique([studentId, subjectName, attendanceDate])
   @@index([studentId, attendanceDate])
   @@index([studentId, subjectName])
 }
@@ -550,6 +551,6 @@ model PortalAttendanceRecord {
   source       String
   importedAt   DateTime     @default(now())
 
-  @@unique([importId, subject, date, status])
+  @@unique([importId, subject, date])
   @@index([importId, date])
 }

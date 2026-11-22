@@ -42,3 +42,15 @@ test('rejects CSV without required columns', () => {
     /could not find subject, date and status/i,
   )
 })
+
+test('reports conflicting statuses for the same subject and date', () => {
+  const csv = [
+    'Subject,Date,Status',
+    'Mathematics,23-11-2026,Present',
+    ' mathematics ,2026-11-23,Absent',
+  ].join('\n')
+  const result = parseAttendanceCsv(csv, 'conflict.csv')
+
+  assert.equal(result.records.length, 1)
+  assert.equal(result.conflicts, 1)
+})

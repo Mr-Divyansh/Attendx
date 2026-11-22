@@ -1,5 +1,5 @@
 -- Scholars24 external portal integration data
-CREATE TABLE "PortalConnection" (
+CREATE TABLE IF NOT EXISTS "PortalConnection" (
     "id" TEXT NOT NULL,
     "studentId" TEXT NOT NULL,
     "provider" TEXT NOT NULL DEFAULT 'SCHOLARS24',
@@ -20,7 +20,7 @@ CREATE TABLE "PortalConnection" (
     CONSTRAINT "PortalConnection_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "PortalSyncHistory" (
+CREATE TABLE IF NOT EXISTS "PortalSyncHistory" (
     "id" TEXT NOT NULL,
     "studentId" TEXT NOT NULL,
     "connectionId" TEXT,
@@ -39,7 +39,7 @@ CREATE TABLE "PortalSyncHistory" (
     CONSTRAINT "PortalSyncHistory_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "PortalImportedSubject" (
+CREATE TABLE IF NOT EXISTS "PortalImportedSubject" (
     "id" TEXT NOT NULL,
     "studentId" TEXT NOT NULL,
     "externalKey" TEXT NOT NULL,
@@ -54,7 +54,7 @@ CREATE TABLE "PortalImportedSubject" (
     CONSTRAINT "PortalImportedSubject_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "PortalImportedAttendance" (
+CREATE TABLE IF NOT EXISTS "PortalImportedAttendance" (
     "id" TEXT NOT NULL,
     "studentId" TEXT NOT NULL,
     "externalKey" TEXT NOT NULL,
@@ -73,7 +73,7 @@ CREATE TABLE "PortalImportedAttendance" (
     CONSTRAINT "PortalImportedAttendance_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "PortalImportedLecture" (
+CREATE TABLE IF NOT EXISTS "PortalImportedLecture" (
     "id" TEXT NOT NULL,
     "studentId" TEXT NOT NULL,
     "externalKey" TEXT NOT NULL,
@@ -92,7 +92,7 @@ CREATE TABLE "PortalImportedLecture" (
     CONSTRAINT "PortalImportedLecture_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "PortalImportedTimetable" (
+CREATE TABLE IF NOT EXISTS "PortalImportedTimetable" (
     "id" TEXT NOT NULL,
     "studentId" TEXT NOT NULL,
     "externalKey" TEXT NOT NULL,
@@ -131,38 +131,46 @@ CREATE TABLE IF NOT EXISTS "PortalAttendanceRecord" (
     CONSTRAINT "PortalAttendanceRecord_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "PortalConnection_studentId_key" ON "PortalConnection"("studentId");
-CREATE INDEX "PortalConnection_provider_status_idx" ON "PortalConnection"("provider", "status");
-CREATE INDEX "PortalSyncHistory_studentId_startedAt_idx" ON "PortalSyncHistory"("studentId", "startedAt");
-CREATE INDEX "PortalSyncHistory_studentId_status_idx" ON "PortalSyncHistory"("studentId", "status");
-CREATE UNIQUE INDEX "PortalImportedSubject_studentId_externalKey_key" ON "PortalImportedSubject"("studentId", "externalKey");
-CREATE INDEX "PortalImportedSubject_studentId_provider_idx" ON "PortalImportedSubject"("studentId", "provider");
-CREATE UNIQUE INDEX "PortalImportedAttendance_studentId_externalKey_key" ON "PortalImportedAttendance"("studentId", "externalKey");
-CREATE INDEX "PortalImportedAttendance_studentId_attendanceDate_idx" ON "PortalImportedAttendance"("studentId", "attendanceDate");
-CREATE INDEX "PortalImportedAttendance_studentId_subjectName_idx" ON "PortalImportedAttendance"("studentId", "subjectName");
-CREATE UNIQUE INDEX "PortalImportedLecture_studentId_externalKey_key" ON "PortalImportedLecture"("studentId", "externalKey");
-CREATE INDEX "PortalImportedLecture_studentId_lectureDate_idx" ON "PortalImportedLecture"("studentId", "lectureDate");
-CREATE UNIQUE INDEX "PortalImportedTimetable_studentId_externalKey_key" ON "PortalImportedTimetable"("studentId", "externalKey");
-CREATE INDEX "PortalImportedTimetable_studentId_weekday_idx" ON "PortalImportedTimetable"("studentId", "weekday");
+CREATE UNIQUE INDEX IF NOT EXISTS "PortalConnection_studentId_key" ON "PortalConnection"("studentId");
+CREATE INDEX IF NOT EXISTS "PortalConnection_provider_status_idx" ON "PortalConnection"("provider", "status");
+CREATE INDEX IF NOT EXISTS "PortalSyncHistory_studentId_startedAt_idx" ON "PortalSyncHistory"("studentId", "startedAt");
+CREATE INDEX IF NOT EXISTS "PortalSyncHistory_studentId_status_idx" ON "PortalSyncHistory"("studentId", "status");
+CREATE UNIQUE INDEX IF NOT EXISTS "PortalImportedSubject_studentId_externalKey_key" ON "PortalImportedSubject"("studentId", "externalKey");
+CREATE INDEX IF NOT EXISTS "PortalImportedSubject_studentId_provider_idx" ON "PortalImportedSubject"("studentId", "provider");
+CREATE UNIQUE INDEX IF NOT EXISTS "PortalImportedAttendance_studentId_externalKey_key" ON "PortalImportedAttendance"("studentId", "externalKey");
+CREATE INDEX IF NOT EXISTS "PortalImportedAttendance_studentId_attendanceDate_idx" ON "PortalImportedAttendance"("studentId", "attendanceDate");
+CREATE INDEX IF NOT EXISTS "PortalImportedAttendance_studentId_subjectName_idx" ON "PortalImportedAttendance"("studentId", "subjectName");
+CREATE UNIQUE INDEX IF NOT EXISTS "PortalImportedLecture_studentId_externalKey_key" ON "PortalImportedLecture"("studentId", "externalKey");
+CREATE INDEX IF NOT EXISTS "PortalImportedLecture_studentId_lectureDate_idx" ON "PortalImportedLecture"("studentId", "lectureDate");
+CREATE UNIQUE INDEX IF NOT EXISTS "PortalImportedTimetable_studentId_externalKey_key" ON "PortalImportedTimetable"("studentId", "externalKey");
+CREATE INDEX IF NOT EXISTS "PortalImportedTimetable_studentId_weekday_idx" ON "PortalImportedTimetable"("studentId", "weekday");
 CREATE INDEX IF NOT EXISTS "PortalImport_studentId_updatedAt_idx" ON "PortalImport"("studentId", "updatedAt");
 CREATE UNIQUE INDEX IF NOT EXISTS "PortalAttendanceRecord_importId_subject_date_status_key" ON "PortalAttendanceRecord"("importId", "subject", "date", "status");
 CREATE INDEX IF NOT EXISTS "PortalAttendanceRecord_importId_date_idx" ON "PortalAttendanceRecord"("importId", "date");
 
-ALTER TABLE "PortalConnection" ADD CONSTRAINT "PortalConnection_studentId_fkey"
-FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "PortalSyncHistory" ADD CONSTRAINT "PortalSyncHistory_studentId_fkey"
-FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "PortalSyncHistory" ADD CONSTRAINT "PortalSyncHistory_connectionId_fkey"
-FOREIGN KEY ("connectionId") REFERENCES "PortalConnection"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE "PortalImportedSubject" ADD CONSTRAINT "PortalImportedSubject_studentId_fkey"
-FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "PortalImportedAttendance" ADD CONSTRAINT "PortalImportedAttendance_studentId_fkey"
-FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "PortalImportedLecture" ADD CONSTRAINT "PortalImportedLecture_studentId_fkey"
-FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "PortalImportedTimetable" ADD CONSTRAINT "PortalImportedTimetable_studentId_fkey"
-FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "PortalImport" ADD CONSTRAINT "PortalImport_studentId_fkey"
-FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "PortalAttendanceRecord" ADD CONSTRAINT "PortalAttendanceRecord_importId_fkey"
-FOREIGN KEY ("importId") REFERENCES "PortalImport"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+DECLARE
+  constraints_to_add text[][] := ARRAY[
+    ['PortalConnection','PortalConnection_studentId_fkey','FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE'],
+    ['PortalSyncHistory','PortalSyncHistory_studentId_fkey','FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE'],
+    ['PortalSyncHistory','PortalSyncHistory_connectionId_fkey','FOREIGN KEY ("connectionId") REFERENCES "PortalConnection"("id") ON DELETE SET NULL ON UPDATE CASCADE'],
+    ['PortalImportedSubject','PortalImportedSubject_studentId_fkey','FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE'],
+    ['PortalImportedAttendance','PortalImportedAttendance_studentId_fkey','FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE'],
+    ['PortalImportedLecture','PortalImportedLecture_studentId_fkey','FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE'],
+    ['PortalImportedTimetable','PortalImportedTimetable_studentId_fkey','FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE'],
+    ['PortalImport','PortalImport_studentId_fkey','FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE'],
+    ['PortalAttendanceRecord','PortalAttendanceRecord_importId_fkey','FOREIGN KEY ("importId") REFERENCES "PortalImport"("id") ON DELETE CASCADE ON UPDATE CASCADE']
+  ];
+  item text[];
+BEGIN
+  FOREACH item SLICE 1 IN ARRAY constraints_to_add
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = item[2]
+        AND conrelid = (quote_ident(item[1])::regclass)
+    ) THEN
+      EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I %s', item[1], item[2], item[3]);
+    END IF;
+  END LOOP;
+END $$;

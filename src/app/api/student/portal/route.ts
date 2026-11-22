@@ -76,7 +76,11 @@ export async function POST(req: NextRequest) {
     const updated = await db.portalConnection.update({
       where: { id: connection.id },
       data: {
-        status: adapter.available ? 'READY' : 'NOT_CONFIGURED',
+        status: adapter.available
+          ? 'READY'
+          : connection.status === 'CSV_ACTIVE'
+            ? 'CSV_ACTIVE'
+            : 'NOT_CONFIGURED',
         lastAttemptAt: new Date(),
         errorCode: adapter.code,
         errorMessage: adapter.available
@@ -84,7 +88,7 @@ export async function POST(req: NextRequest) {
           : adapter.message,
       },
     })
-    return json({ ok: false, connection: updated, adapter })
+    return json({ ok: false, connection: updated, adapter }, adapter.available ? 200 : 501)
   } catch (e) {
     return handleRouteError(e, 'student/portal/connect')
   }

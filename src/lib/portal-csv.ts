@@ -89,6 +89,7 @@ export function parseAttendanceCsv(text: string, fileName: string): {
   records: ImportedRecord[]
   skipped: number
   duplicates: number
+  conflicts: number
 } {
   const rows = parseCsvRows(text.replace(/^\uFEFF/, ''))
   if (rows.length < 2) throw new Error('The CSV is empty or has no attendance rows.')
@@ -111,8 +112,10 @@ export function parseAttendanceCsv(text: string, fileName: string): {
   const importedAt = new Date().toISOString()
   const records: ImportedRecord[] = []
   const seen = new Set<string>()
+  const statusesBySubjectDate = new Map<string, AttendanceStatus>()
   let skipped = 0
   let duplicates = 0
+  let conflicts = 0
 
   rows.slice(headerIndex + 1).forEach((row) => {
     const subject = row[subjectIndex]?.trim()
@@ -123,17 +126,30 @@ export function parseAttendanceCsv(text: string, fileName: string): {
       return
     }
 
-    const duplicateKey = `${date}|${subject.toLocaleLowerCase()}|${status}`
+    const normalizedSubject = subject.trim()
+    const subjectDateKey = `${normalizedSubject.toLocaleLowerCase().replace(/\s+/g, ' ')}|${date}`
+    const existingStatus = statusesBySubjectDate.get(subjectDateKey)
+    if (existingStatus && existingStatus !== status) {
+      conflicts += 1
+      return
+    }
+    if (existingStatus === status) {
+      duplicates += 1
+      return
+    }
+    statusesBySubjectDate.set(subjectDateKey, status)
+
+    const duplicateKey = `${date}|${normalizedSubject.toLocaleLowerCase()}|${status}`
     if (seen.has(duplicateKey)) {
       duplicates += 1
       return
     }
     seen.add(duplicateKey)
-    records.push({ id: duplicateKey, subject, date, status, source: fileName, importedAt })
+    records.push({ id: duplicateKey, subject: normalizedSubject, date, status, source: fileName, importedAt })
   })
 
   if (records.length === 0) {
     throw new Error('No valid attendance rows were found. Check the CSV column names and values.')
   }
-  return { records, skipped, duplicates }
+  return { records, skipped, duplicates, conflicts }
 }
