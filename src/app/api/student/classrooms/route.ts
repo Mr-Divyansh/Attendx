@@ -8,33 +8,51 @@ export async function GET() {
 
     const memberships = await db.classroomMember.findMany({
       where: { studentId: session.studentId },
-      include: {
+      select: {
+        status: true,
+        joinedAt: true,
         classroom: {
-          include: {
-            teacher: true,
-            subject: true,
+          select: {
+            id: true,
+            publicId: true,
+            name: true,
+            course: true,
+            section: true,
+            year: true,
+            durationYears: true,
+            expiresAt: true,
+            academicYear: true,
+            teachingMode: true,
+            joinCode: true,
+            createdAt: true,
+            teacher: { select: { fullName: true } },
+            subject: { select: { id: true, code: true, name: true } },
             semester: { select: { id: true, name: true } },
-            schedules: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] },
+            schedules: {
+              select: { id: true, day: true, startTime: true, endTime: true, room: true },
+              orderBy: [{ day: 'asc' }, { startTime: 'asc' }],
+            },
           },
         },
       },
       orderBy: { joinedAt: 'desc' },
     })
 
+    const now = Date.now()
     return json({
-      classrooms: memberships.map((m) => {
-        const now = Date.now()
-        const expired = !!m.classroom.expiresAt && m.classroom.expiresAt.getTime() < now
+      classrooms: memberships.map((membership) => {
+        const expired = !!membership.classroom.expiresAt && membership.classroom.expiresAt.getTime() < now
         return {
-          ...m.classroom,
-          status: m.status,
+          ...membership.classroom,
+          status: membership.status,
+          joinedAt: membership.joinedAt,
           expired,
           classroomStatus: expired ? 'EXPIRED' : 'ACTIVE',
         }
       }),
     })
-  } catch (e) {
-    if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return handleRouteError(e, 'student/classrooms')
+  } catch (error) {
+    if (error instanceof AuthError) return errorResponse(error.message, error.status)
+    return handleRouteError(error, 'student/classrooms')
   }
 }

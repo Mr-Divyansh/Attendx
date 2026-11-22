@@ -14,6 +14,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { parseAttendanceCsv, type ImportedRecord } from '@/lib/portal-csv'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,16 +24,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-
-type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE'
-type ImportedRecord = {
-  id: string
-  subject: string
-  date: string
-  status: AttendanceStatus
-  source: string
-  importedAt: string
-}
 
 type SubjectSummary = {
   subject: string
@@ -45,131 +36,6 @@ const STORAGE_PREFIX = 'attendx:portal-import:v1:'
 const PORTAL_ATTENDANCE_URL =
   'https://portal-hd.scholars24.in/Student/Student/StudentView'
 
-function parseCsvLine(line: string): string[] {
-  const values: string[] = []
-  let current = ''
-  let quoted = false
-
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index]
-    if (char === '"' && line[index + 1] === '"' && quoted) {
-      current += '"'
-      index += 1
-    } else if (char === '"') {
-      quoted = !quoted
-    } else if (char === ',' && !quoted) {
-      values.push(current.trim())
-      current = ''
-    } else {
-      current += char
-    }
-  }
-  values.push(current.trim())
-  return values
-}
-
-function normalizeHeader(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, '')
-}
-
-function findColumn(headers: string[], aliases: string[]): number {
-  return headers.map(normalizeHeader).findIndex((header) => aliases.includes(header))
-}
-
-function normalizeDate(value: string): string | null {
-  const input = value.trim()
-  if (!input) return null
-
-  const iso = input.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
-  if (iso) {
-    const year = iso[1]
-    const month = iso[2].padStart(2, '0')
-    const day = iso[3].padStart(2, '0')
-    return year + '-' + month + '-' + day
-  }
-
-  // Indian portal exports commonly use DD-MM-YYYY or DD/MM/YYYY.
-  const indian = input.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/)
-  if (indian) {
-    const day = Number(indian[1])
-    const monthNumber = Number(indian[2])
-    if (day < 1 || day > 31 || monthNumber < 1 || monthNumber > 12) return null
-    return indian[3] + '-' + indian[2].padStart(2, '0') + '-' + indian[1].padStart(2, '0')
-  }
-
-  const parsed = new Date(input)
-  if (Number.isNaN(parsed.getTime())) return null
-  return parsed.getFullYear() + '-' +
-    String(parsed.getMonth() + 1).padStart(2, '0') + '-' +
-    String(parsed.getDate()).padStart(2, '0')
-}
-
-function normalizeStatus(value: string): AttendanceStatus | null {
-  const status = value.trim().toLowerCase()
-  if (/^(p|present|yes|true|1|attended)$/.test(status)) return 'PRESENT'
-  if (/^(a|absent|no|false|0|missed)$/.test(status)) return 'ABSENT'
-  if (/^(l|late|late present)$/.test(status)) return 'LATE'
-  return null
-}
-
-function parseAttendanceCsv(text: string, fileName: string): {
-  records: ImportedRecord[]
-  skipped: number
-} {
-  const rows = text
-    .replace(/^\uFEFF/, '')
-    .split(/\r?\n/)
-    .map(parseCsvLine)
-    .filter((row) => row.some((cell) => cell.trim().length > 0))
-
-  if (rows.length < 2) throw new Error('The CSV is empty or has no attendance rows.')
-
-  const subjectAliases = ['subject', 'subjectname', 'course', 'coursename', 'paper']
-  const dateAliases = ['date', 'classdate', 'attendancedate', 'markedon']
-  const statusAliases = ['status', 'attendance', 'attendancestatus', 'presentabsent']
-
-  const headerIndex = rows.findIndex((row) => {
-    const headers = row.map(normalizeHeader)
-    return headers.some((h) => subjectAliases.includes(h)) &&
-      headers.some((h) => dateAliases.includes(h)) &&
-      headers.some((h) => statusAliases.includes(h))
-  })
-
-  if (headerIndex < 0) {
-    throw new Error('Could not find Subject, Date and Status columns in this CSV.')
-  }
-
-  const headers = rows[headerIndex]
-  const subjectIndex = findColumn(headers, subjectAliases)
-  const dateIndex = findColumn(headers, dateAliases)
-  const statusIndex = findColumn(headers, statusAliases)
-  const importedAt = new Date().toISOString()
-  const records: ImportedRecord[] = []
-  let skipped = 0
-
-  rows.slice(headerIndex + 1).forEach((row, index) => {
-    const subject = row[subjectIndex]?.trim()
-    const date = normalizeDate(row[dateIndex] ?? '')
-    const status = normalizeStatus(row[statusIndex] ?? '')
-    if (!subject || !date || !status) {
-      skipped += 1
-      return
-    }
-    records.push({
-      id: date + '|' + subject.toLowerCase() + '|' + index,
-      subject,
-      date,
-      status,
-      source: fileName,
-      importedAt,
-    })
-  })
-
-  if (records.length === 0) {
-    throw new Error('No valid attendance rows were found. Check the CSV column names and values.')
-  }
-  return { records, skipped }
-}
 
 export function PortalImportPanel({ storageKey }: { storageKey: string }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -177,8 +43,8 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
   const [records, setRecords] = useState<ImportedRecord[]>([])
   const [loadedKey, setLoadedKey] = useState<string | null>(null)
   const [isImporting, setIsImporting] = useState(false)
-  const [lastImport, setLastImport] = useState<{ count: number; skipped: number } | null>(null)
-  const [pendingImport, setPendingImport] = useState<{ records: ImportedRecord[]; skipped: number; fileName: string } | null>(null)
+  const [lastImport, setLastImport] = useState<{ count: number; skipped: number; duplicates: number } | null>(null)
+  const [pendingImport, setPendingImport] = useState<{ records: ImportedRecord[]; skipped: number; duplicates: number; fileName: string } | null>(null)
 
   useEffect(() => {
     try {
@@ -236,11 +102,12 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
 
     setIsImporting(true)
     try {
+      if (!file.name.toLowerCase().endsWith('.csv')) throw new Error('Please select a .csv file.')
       const parsed = parseAttendanceCsv(await file.text(), file.name)
       const nextRecords = [...parsed.records].sort(
         (a, b) => b.date.localeCompare(a.date) || a.subject.localeCompare(b.subject),
       )
-      setPendingImport({ records: nextRecords, skipped: parsed.skipped, fileName: file.name })
+      setPendingImport({ records: nextRecords, skipped: parsed.skipped, duplicates: parsed.duplicates, fileName: file.name })
       toast.success('CSV validated. Review the preview before replacing your imported records.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to import this CSV.')
@@ -260,7 +127,7 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
     )
     if (!confirmed) return
     setRecords(pendingImport.records)
-    setLastImport({ count: pendingImport.records.length, skipped: pendingImport.skipped })
+    setLastImport({ count: pendingImport.records.length, skipped: pendingImport.skipped, duplicates: pendingImport.duplicates })
     setPendingImport(null)
     toast.success(pendingImport.records.length + ' portal attendance rows replaced.')
   }
@@ -299,7 +166,7 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
         </div>
         <Button variant="outline" asChild>
           <a href={PORTAL_ATTENDANCE_URL} target="_blank" rel="noreferrer">
-            Open Scholars24 <ArrowUpRight className="ml-2 size-4" />
+            Login to Scholars24 <ArrowUpRight className="ml-2 size-4" />
           </a>
         </Button>
       </div>
@@ -314,7 +181,7 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
               <Badge variant="outline" className="text-muted-foreground">CSV · max 3 MB</Badge>
             </div>
             <CardDescription>
-              Export or download your own attendance report from the college portal, then upload that CSV here.
+              Step 1: Sign in on the official Scholars24 portal. Step 2: download your attendance report and import its CSV here.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -345,7 +212,7 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
                 </Button>
                 {lastImport && (
                   <p className="mt-3 text-xs text-muted-foreground">
-                    Last import: {lastImport.count} added · {lastImport.skipped} skipped
+                    Last import: {lastImport.count} imported · {lastImport.skipped} invalid · {lastImport.duplicates} duplicates ignored
                   </p>
                 )}
               </div>
@@ -355,11 +222,20 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
                 <div>
                   <p className="font-medium">Import preview</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {pendingImport.records.length} valid rows · {pendingImport.skipped} skipped · {pendingImport.fileName}
+                    {pendingImport.records.length} valid rows · {pendingImport.skipped} invalid rows · {pendingImport.duplicates} duplicates ignored · {pendingImport.fileName}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     This will replace only the portal-imported records saved in this browser.
                   </p>
+                  <div className="max-h-48 overflow-auto rounded-lg border bg-background">
+                    {pendingImport.records.slice(0, 8).map((record) => (
+                      <div key={record.id} className="flex items-center justify-between gap-3 border-b px-3 py-2 text-sm last:border-0">
+                        <div className="min-w-0"><p className="truncate font-medium">{record.subject}</p><p className="text-xs text-muted-foreground">{record.date}</p></div>
+                        <Badge variant="outline">{record.status === 'PRESENT' ? 'Present' : record.status === 'ABSENT' ? 'Absent' : 'Late'}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                  {pendingImport.records.length > 8 && <p className="text-xs text-muted-foreground">Showing first 8 of {pendingImport.records.length} valid rows.</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={confirmImport}>Confirm replacement</Button>
@@ -369,7 +245,7 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
             )}
             <div className="mt-4 flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
               <LockKeyhole className="mt-0.5 size-4 shrink-0" />
-              <p>Your CSV is processed in this browser. It is not uploaded to AttendX servers and is saved only in this browser on this device.</p>
+              <p>Scholars24 login opens on its official website in a new tab. Enter your login details only there. AttendX does not receive them. Your CSV is processed in this browser and saved only on this device.</p>
             </div>
           </CardContent>
         </Card>
