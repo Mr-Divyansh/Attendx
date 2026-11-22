@@ -4,7 +4,7 @@
 // SQL projections of teacher-marked records: overall %, today's status, subject-wise %,
 // weekly report, monthly trend, at-risk subjects. No edit affordances.
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   DashboardShell,
   StatCard,
@@ -203,17 +203,17 @@ const NAV: NavItem[] = [
 export function StudentDashboard() {
   const { user } = useAuth()
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const pathname = usePathname()
   const validPages = ['overview', 'classrooms', 'subjects', 'weekly', 'monthly', 'portal-sync']
-  const [active, setActive] = useState(() => {
-    const page = searchParams.get('tab')
-    return page && validPages.includes(page) ? page : 'overview'
-  })
+  const routePage = pathname === '/' || pathname === '/student'
+    ? 'overview'
+    : pathname.split('/').filter(Boolean).at(-1) || 'overview'
+  const active = validPages.includes(routePage) ? routePage : 'overview'
 
   useEffect(() => {
-    const page = searchParams.get('tab')
-    setActive(page && validPages.includes(page) ? page : 'overview')
-  }, [searchParams])
+    if (pathname === '/') router.replace('/student')
+    else if (pathname !== '/student' && !validPages.includes(routePage)) router.replace('/student')
+  }, [pathname, routePage, router])
 
   const [stats, setStats] = useState<StatsResp | null>(null)
   const [subjects, setSubjects] = useState<SubjectRow[]>([])
@@ -318,8 +318,7 @@ export function StudentDashboard() {
 
   const navigatePage = (id: string) => {
     if (!validPages.includes(id)) return
-    setActive(id)
-    router.push(id === 'overview' ? '/' : `/?tab=${encodeURIComponent(id)}`, { scroll: false })
+    router.push(id === 'overview' ? '/student' : `/student/${id}`, { scroll: false })
   }
 
   return (
@@ -327,7 +326,7 @@ export function StudentDashboard() {
       nav={NAV}
       active={active}
       onNavigate={navigatePage}
-      title="My Attendance"
+      title={active === 'overview' ? 'My Attendance' : NAV.find((item) => item.id === active)?.label || 'My Attendance'}
       accent="Student"
     >
       <div className="space-y-6">
@@ -348,6 +347,8 @@ export function StudentDashboard() {
           </Alert>
         )}
 
+        {active === 'overview' && (
+          <>
         {/* Welcome banner */}
         <WelcomeBanner
           firstName={firstName}
@@ -454,6 +455,9 @@ export function StudentDashboard() {
               />
             </div>
           )}
+
+          </>
+        )}
 
         <section id="section-classrooms" hidden={active !== 'classrooms'}>
           <Card>
@@ -901,7 +905,7 @@ export function StudentDashboard() {
         </section>
 
         {/* Summary footer card */}
-        {!loading && stats && stats.counts.total > 0 && subjects.length > 0 && (
+        {active === 'overview' && !loading && stats && stats.counts.total > 0 && subjects.length > 0 && (
           <Card className="bg-card">
             <CardContent className="pt-6">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
