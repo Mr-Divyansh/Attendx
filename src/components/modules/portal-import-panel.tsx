@@ -227,6 +227,15 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
                   <p className="text-xs text-muted-foreground">
                     This will replace only the portal-imported records saved in this browser.
                   </p>
+                  <div className="max-h-48 overflow-auto rounded-lg border bg-background">
+                    {pendingImport.records.slice(0, 8).map((record) => (
+                      <div key={record.id} className="flex items-center justify-between gap-3 border-b px-3 py-2 text-sm last:border-0">
+                        <div className="min-w-0"><p className="truncate font-medium">{record.subject}</p><p className="text-xs text-muted-foreground">{record.date}</p></div>
+                        <Badge variant="outline">{record.status === 'PRESENT' ? 'Present' : record.status === 'ABSENT' ? 'Absent' : 'Late'}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                  {pendingImport.records.length > 8 && <p className="text-xs text-muted-foreground">Showing first 8 of {pendingImport.records.length} valid rows.</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={confirmImport}>Confirm replacement</Button>
