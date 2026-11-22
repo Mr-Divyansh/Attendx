@@ -2,6 +2,7 @@
 // Six calendar-month history plus a selectable month breakdown, all scoped to one student.
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
+import { getMinimumAttendancePercentage } from '@/lib/config'
 import { requireRole, json, errorResponse, AuthError, handleRouteError } from '@/lib/auth'
 
 function fmt(date: Date): string {
@@ -33,6 +34,7 @@ export async function GET(request: NextRequest) {
     const studentId = session.studentId
     if (!studentId) return errorResponse('Student profile missing', 403)
 
+    const threshold = await getMinimumAttendancePercentage()
     const requestedMonth = request.nextUrl.searchParams.get('month')
     const parsedMonth = parseMonth(requestedMonth)
     if (requestedMonth && !parsedMonth) return errorResponse('Invalid month. Use YYYY-MM.', 400)
@@ -81,6 +83,7 @@ export async function GET(request: NextRequest) {
     const subjects = Array.from(subjectMap.values()).map(({ records: subjectRecords, ...subject }) => ({
       ...subject,
       ...summarize(subjectRecords),
+      atRisk: subjectRecords.length > 0 && summarize(subjectRecords).pct !== null && (summarize(subjectRecords).pct as number) < threshold,
     })).sort((a, b) => a.name.localeCompare(b.name))
 
     const selectedIndex = months.length - 1
@@ -91,6 +94,7 @@ export async function GET(request: NextRequest) {
       : null
 
     return json({
+      minimumAttendancePercentage: threshold,
       selectedMonth: `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`,
       summary: summarize(selectedRecords),
       comparison: { previousMonth: previousSummary ?? null, percentagePointChange: change },
