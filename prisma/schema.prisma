@@ -113,6 +113,7 @@ model Student {
 
   attendance           Attendance[]
   classroomMemberships ClassroomMember[]
+  portalImports        PortalImport[]
 }
 
 // ───────────────────────────────────────────────────────────
@@ -381,4 +382,34 @@ model AuditLog {
 
   @@index([actorId])
   @@index([action])
+}
+
+
+// ───────────────────────────────────────────────────────────
+// External student portal imports (kept separate from teacher attendance)
+// ───────────────────────────────────────────────────────────
+model PortalImport {
+  id        String                   @id @default(cuid())
+  studentId String
+  student   Student                  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  source    String                   @default("CSV")
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+  records   PortalAttendanceRecord[]
+
+  @@index([studentId, updatedAt])
+}
+
+model PortalAttendanceRecord {
+  id         String      @id @default(cuid())
+  importId   String
+  portalImport PortalImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  subject    String
+  date       String
+  status     String
+  source     String
+  importedAt DateTime    @default(now())
+
+  @@unique([importId, subject, date, status])
+  @@index([importId, date])
 }
