@@ -33,7 +33,10 @@ export async function GET(request: NextRequest) {
     const studentId = session.studentId
     if (!studentId) return errorResponse('Student profile missing', 403)
 
-    const selectedMonth = parseMonth(request.nextUrl.searchParams.get('month')) ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+    const requestedMonth = request.nextUrl.searchParams.get('month')
+    const parsedMonth = parseMonth(requestedMonth)
+    if (requestedMonth && !parsedMonth) return errorResponse('Invalid month. Use YYYY-MM.', 400)
+    const selectedMonth = parsedMonth ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1)
     const firstMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 5, 1)
     const lastDay = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0)
     const records = await db.attendance.findMany({
