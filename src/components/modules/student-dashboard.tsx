@@ -150,7 +150,6 @@ type ClassroomRow = {
   subject?: { name: string } | null
   teacher?: { fullName: string } | null
   joinCode: string
-  inviteToken: string
   status: string
   schedules?: { id: string; day: string; startTime: string; endTime: string; room?: string | null }[]
 }
