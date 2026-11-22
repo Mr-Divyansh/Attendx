@@ -1,10 +1,22 @@
-// AttendX — Student monthly attendance API
-// Returns six calendar months (oldest to current), using only marked records.
+// AttendX — Student calendar-month attendance API
+// GET /api/student/monthly → calendar-week buckets within the current calendar month.
 import { db } from '@/lib/db'
 import { requireRole, json, errorResponse, AuthError, handleRouteError } from '@/lib/auth'
 
+function pct(attended: number, total: number): number {
+  return total > 0 ? Math.round((attended / total) * 100) : 0
+}
+
+function mondayOfWeek(date: Date): Date {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  const offset = d.getDay() === 0 ? -6 : 1 - d.getDay()
+  d.setDate(d.getDate() + offset)
+  return d
+}
+
 function fmt(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
 }
 
 export async function GET() {
@@ -14,52 +26,41 @@ export async function GET() {
     if (!studentId) return errorResponse('Student profile missing', 403)
 
     const now = new Date()
-    const months: { key: string; month: string; start: Date; end: Date }[] = []
-    for (let offset = 5; offset >= 0; offset -= 1) {
-      const start = new Date(now.getFullYear(), now.getMonth() - offset, 1)
-      const end = new Date(start.getFullYear(), start.getMonth() + 1, 0)
-      months.push({
-        key: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`,
-        month: start.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }),
-        start,
-        end,
-      })
-    }
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    monthStart.setHours(0, 0, 0, 0)
+    monthEnd.setHours(0, 0, 0, 0)
 
     const records = await db.attendance.findMany({
-      where: {
-        studentId,
-        date: { gte: fmt(months[0].start), lte: fmt(months[5].end) },
-      },
+      where: { studentId, date: { gte: fmt(monthStart), lte: fmt(monthEnd) } },
       select: { date: true, status: true },
     })
 
-    const buckets = months.map((item) => ({
-      month: item.month,
-      start: fmt(item.start),
-      end: fmt(item.end),
-      attended: 0,
-      total: 0,
-    }))
+    const weeks: { week: string; start: string; end: string; attended: number; total: number }[] = []
+    let cursor = mondayOfWeek(monthStart)
+    let index = 1
+    while (cursor <= monthEnd) {
+      const weekEnd = new Date(cursor)
+      weekEnd.setDate(weekEnd.getDate() + 6)
+      const clippedStart = cursor < monthStart ? monthStart : cursor
+      const clippedEnd = weekEnd > monthEnd ? monthEnd : weekEnd
+      weeks.push({ week: 'Week ' + index, start: fmt(clippedStart), end: fmt(clippedEnd), attended: 0, total: 0 })
+      cursor = new Date(cursor)
+      cursor.setDate(cursor.getDate() + 7)
+      index += 1
+    }
 
-    const bucketByKey = new Map(months.map((item, index) => [item.key, buckets[index]]))
     for (const record of records) {
-      const key = record.date.slice(0, 7)
-      const bucket = bucketByKey.get(key)
+      const bucket = weeks.find((week) => record.date >= week.start && record.date <= week.end)
       if (!bucket) continue
       bucket.total += 1
       if (record.status === 'present' || record.status === 'late') bucket.attended += 1
     }
 
-    const weeks = buckets.map((bucket) => ({
-      ...bucket,
-      pct: bucket.total ? Math.round((bucket.attended / bucket.total) * 100) : 0,
-    }))
-
-    return json({ weeks })
-  } catch (error) {
-    if (error instanceof AuthError) return errorResponse(error.message, error.status)
-    console.error('[student/monthly] error:', error)
-    return handleRouteError(error, 'student/monthly')
+    return json({ weeks: weeks.map((week) => ({ ...week, pct: pct(week.attended, week.total) })) })
+  } catch (e) {
+    if (e instanceof AuthError) return errorResponse(e.message, e.status)
+    console.error('[student/monthly] error:', e)
+    return handleRouteError(e, 'student/monthly')
   }
 }
