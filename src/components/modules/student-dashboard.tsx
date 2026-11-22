@@ -362,30 +362,22 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
           loading={loading}
         />
 
-        {/* At-risk alert */}
-        {!loading && stats && stats.atRiskCount > 0 && (
-          <Alert className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
-            <TriangleAlert className="text-amber-600 dark:text-amber-400" />
-            <AlertTitle>
-              Attendance below {threshold}% in {stats.atRiskCount}{' '}
-              {stats.atRiskCount === 1 ? 'subject' : 'subjects'}
-            </AlertTitle>
-            <AlertDescription className="text-amber-700/90 dark:text-amber-300/90">
-              Your attendance has fallen below the minimum requirement. Please attend
-              upcoming classes regularly.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {!loading && stats && stats.overallPct != null && stats.overallPct < threshold && (
-          <Alert className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
-            <TriangleAlert className="text-amber-600 dark:text-amber-400" />
-            <AlertTitle>Attendance is below {threshold}%.</AlertTitle>
-            <AlertDescription className="text-amber-700/90 dark:text-amber-300/90">
-              Please attend classes regularly to maintain the required attendance
-              percentage.
-            </AlertDescription>
-          </Alert>
+        {/* One concise attendance warning instead of duplicate alerts */}
+        {!loading && stats && (
+          (stats.atRiskCount > 0 || (stats.overallPct != null && stats.overallPct < threshold)) && (
+            <Alert className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+              <TriangleAlert className="text-amber-600 dark:text-amber-400" />
+              <AlertTitle>
+                {stats.atRiskCount > 0
+                  ? `Attendance below ${threshold}% in ${stats.atRiskCount} ${stats.atRiskCount === 1 ? 'subject' : 'subjects'}`
+                  : `Overall attendance is below ${threshold}%.`}
+              </AlertTitle>
+              <AlertDescription className="text-amber-700/90 dark:text-amber-300/90">
+                {stats.overallPct != null ? `Your overall attendance is ${stats.overallPct}%. ` : ''}
+                Attend upcoming classes regularly to improve your attendance.
+              </AlertDescription>
+            </Alert>
+          )
         )}
 
         {!loading && stats && stats.counts.total === 0 && (
