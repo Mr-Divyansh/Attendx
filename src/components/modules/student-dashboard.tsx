@@ -4,6 +4,7 @@
 // SQL projections of teacher-marked records: overall %, today's status, subject-wise %,
 // weekly report, monthly trend, at-risk subjects. No edit affordances.
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   DashboardShell,
   StatCard,
@@ -201,7 +202,18 @@ const NAV: NavItem[] = [
 // ── Component ──────────────────────────────────────────────────────────────
 export function StudentDashboard() {
   const { user } = useAuth()
-  const [active, setActive] = useState('overview')
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const validPages = ['overview', 'classrooms', 'subjects', 'weekly', 'monthly', 'portal-sync']
+  const [active, setActive] = useState(() => {
+    const page = searchParams.get('tab')
+    return page && validPages.includes(page) ? page : 'overview'
+  })
+
+  useEffect(() => {
+    const page = searchParams.get('tab')
+    setActive(page && validPages.includes(page) ? page : 'overview')
+  }, [searchParams])
 
   const [stats, setStats] = useState<StatsResp | null>(null)
   const [subjects, setSubjects] = useState<SubjectRow[]>([])
@@ -304,19 +316,17 @@ export function StudentDashboard() {
     }
   }
 
-  const scrollToId = (id: string) => {
+  const navigatePage = (id: string) => {
+    if (!validPages.includes(id)) return
     setActive(id)
-    if (typeof document !== 'undefined') {
-      const el = document.getElementById(`section-${id}`)
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
+    router.push(id === 'overview' ? '/' : `/?tab=${encodeURIComponent(id)}`, { scroll: false })
   }
 
   return (
     <DashboardShell
       nav={NAV}
       active={active}
-      onNavigate={scrollToId}
+      onNavigate={navigatePage}
       title="My Attendance"
       accent="Student"
     >
@@ -445,7 +455,7 @@ export function StudentDashboard() {
             </div>
           )}
 
-        <section id="section-classrooms" className="scroll-mt-24">
+        <section id="section-classrooms" hidden={active !== 'classrooms'}>
           <Card>
             <CardHeader>
               <CardTitle>Classrooms</CardTitle>
@@ -514,7 +524,7 @@ export function StudentDashboard() {
         </section>
 
         {/* Subject-wise bar chart */}
-        <section id="section-subjects" className="scroll-mt-24">
+        <section id="section-subjects" hidden={active !== 'subjects'}>
           <Card>
             <CardHeader>
               <CardTitle>Subject-wise Attendance</CardTitle>
@@ -612,7 +622,7 @@ export function StudentDashboard() {
         {/* Weekly + Monthly (two-column on lg) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Weekly */}
-          <section id="section-weekly" className="scroll-mt-24">
+          <section id="section-weekly" hidden={active !== 'weekly'}>
             <Card className="h-full">
               <CardHeader>
                 <CardTitle>Weekly Report</CardTitle>
@@ -708,7 +718,7 @@ export function StudentDashboard() {
           </section>
 
           {/* Monthly */}
-          <section id="section-monthly" className="scroll-mt-24">
+          <section id="section-monthly" hidden={active !== 'monthly'}>
             <Card className="h-full">
               <CardHeader>
                 <CardTitle>Monthly Trend</CardTitle>
@@ -799,7 +809,7 @@ export function StudentDashboard() {
         </div>
 
         {/* Subject breakdown table */}
-        <section id="section-overview" className="scroll-mt-24">
+        <section id="section-overview" hidden={active !== 'overview'}>
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <div>
@@ -925,7 +935,7 @@ export function StudentDashboard() {
             </CardContent>
           </Card>
         )}
-        <section id="section-portal-sync" className="scroll-mt-24">
+        <section id="section-portal-sync" hidden={active !== 'portal-sync'}>
           <PortalImportPanel storageKey={user?.email || 'student'} />
         </section>
       </div>

@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://attendx.netlify.app";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://attendx-ashy.vercel.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -126,7 +126,7 @@ export default async function RootLayout({
           nonce={nonce}
           attribute="class"
           defaultTheme="light"
-          enableSystem
+          enableSystem={false}
           disableTransitionOnChange
         >
           {children}

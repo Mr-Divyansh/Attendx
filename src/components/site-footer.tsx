@@ -39,9 +39,9 @@ export function SiteFooter({ compact = false }: { compact?: boolean }) {
               <div>
                 <p className="text-sm font-semibold text-foreground">Product</p>
                 <nav className="mt-3 grid gap-2.5 text-sm text-muted-foreground">
-                  <Link href="/" className="transition-colors hover:text-foreground">Student</Link>
-                  <Link href="/" className="transition-colors hover:text-foreground">Teacher</Link>
-                  <Link href="/" className="transition-colors hover:text-foreground">Personal Tracker</Link>
+                  <Link href="/?open=student" className="transition-colors hover:text-foreground">Student</Link>
+                  <Link href="/?open=teacher" className="transition-colors hover:text-foreground">Teacher</Link>
+                  <Link href="/?open=personal" className="transition-colors hover:text-foreground">Personal Tracker</Link>
                 </nav>
               </div>
 
