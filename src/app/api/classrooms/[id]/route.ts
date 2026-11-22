@@ -4,11 +4,13 @@ import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteErro
 
 export const runtime = 'nodejs'
 
+type ClassroomRouteContext = { params: Promise<{ id: string }> }
+
 async function owned(id: string, teacherId: string) {
   return db.classroom.findFirst({ where: { id, teacherId }, include: { subject: true, semester: { select: { id: true, name: true } }, members: { include: { student: { include: { user: { select: { email: true } } } } } }, schedules: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } } })
 }
 
-export async function GET(_req: NextRequest, context: RouteContext<'/api/classrooms/[id]'>) {
+export async function GET(_req: NextRequest, context: ClassroomRouteContext) {
   try {
     const session = await requireRole('TEACHER')
     const { id } = await context.params
@@ -20,7 +22,7 @@ export async function GET(_req: NextRequest, context: RouteContext<'/api/classro
   } catch (e) { return handleRouteError(e, 'classrooms/id') }
 }
 
-export async function DELETE(req: NextRequest, context: RouteContext<'/api/classrooms/[id]'>) {
+export async function DELETE(req: NextRequest, context: ClassroomRouteContext) {
   try {
     const session = await requireRole('TEACHER')
     await assertCsrf(req)
@@ -31,7 +33,7 @@ export async function DELETE(req: NextRequest, context: RouteContext<'/api/class
   } catch (e) { return handleRouteError(e, 'classrooms/id') }
 }
 
-export async function PATCH(req: NextRequest, context: RouteContext<'/api/classrooms/[id]'>) {
+export async function PATCH(req: NextRequest, context: ClassroomRouteContext) {
   try {
     const session = await requireRole('TEACHER')
     await assertCsrf(req)
