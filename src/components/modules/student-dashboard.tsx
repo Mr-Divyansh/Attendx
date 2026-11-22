@@ -4,7 +4,7 @@
 // SQL projections of teacher-marked records: overall %, today's status, subject-wise %,
 // weekly report, monthly trend, at-risk subjects. No edit affordances.
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import {
   DashboardShell,
   StatCard,
@@ -200,20 +200,11 @@ const NAV: NavItem[] = [
 ]
 
 // ── Component ──────────────────────────────────────────────────────────────
-export function StudentDashboard() {
+export function StudentDashboard({ page = 'overview' }: { page?: string }) {
   const { user } = useAuth()
   const router = useRouter()
-  const pathname = usePathname()
   const validPages = ['overview', 'classrooms', 'subjects', 'weekly', 'monthly', 'portal-sync']
-  const routePage = pathname === '/' || pathname === '/student'
-    ? 'overview'
-    : pathname.split('/').filter(Boolean).at(-1) || 'overview'
-  const active = validPages.includes(routePage) ? routePage : 'overview'
-
-  useEffect(() => {
-    if (pathname === '/') router.replace('/student')
-    else if (pathname !== '/student' && !validPages.includes(routePage)) router.replace('/student')
-  }, [pathname, routePage, router])
+  const active = validPages.includes(page) ? page : 'overview'
 
   const [stats, setStats] = useState<StatsResp | null>(null)
   const [subjects, setSubjects] = useState<SubjectRow[]>([])
