@@ -4,8 +4,11 @@ import type { NextRequest } from 'next/server'
 const OAUTH_STATE_COOKIE = 'attendx_oauth_state'
 
 export class OAuthConfigurationError extends Error {
-  constructor(readonly code: 'missing_credentials' | 'invalid_callback_url') {
+  readonly code: 'missing_credentials' | 'invalid_callback_url'
+
+  constructor(code: 'missing_credentials' | 'invalid_callback_url') {
     super(code)
+    this.code = code
   }
 }
 
@@ -57,13 +60,31 @@ export function getGoogleOAuthConfig(req: NextRequest): OAuthConfig {
   const configuredCallback = trim(process.env.GOOGLE_CALLBACK_URL)
   const configuredAppUrl = trim(process.env.NEXT_PUBLIC_APP_URL)
   const vercelUrl = trim(process.env.VERCEL_URL)
+  const vercelBranchUrl = trim(process.env.VERCEL_BRANCH_URL)
+  const isPreview = trim(process.env.VERCEL_ENV) === 'preview'
+
+  if (isPreview) {
+    const allowedPreviewOrigins = [vercelUrl, vercelBranchUrl]
+      .filter((host): host is string => Boolean(host))
+      .map((host) => parsePublicUrl(`https://${host}`).origin)
+
+    if (!allowedPreviewOrigins.includes(requestOrigin)) {
+      throw new OAuthConfigurationError('invalid_callback_url')
+    }
+
+    return {
+      clientId,
+      clientSecret,
+      callbackUrl: `${requestOrigin}/api/auth/google/callback`,
+      appUrl: requestOrigin,
+    }
+  }
 
   const callbackUrl = configuredCallback
     ? parsePublicUrl(configuredCallback).toString().replace(/\/$/, '')
     : `${requestOrigin}/api/auth/google/callback`
 
-  // After Google returns, keep the user on the same configured application
-  // origin. For unconfigured preview/local deployments, use the request origin.
+  // Keep the post-login redirect on the configured application origin.
   const appUrl = configuredAppUrl
     ? parsePublicUrl(configuredAppUrl).origin
     : configuredCallback
