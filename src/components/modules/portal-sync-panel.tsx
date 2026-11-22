@@ -1,7 +1,23 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUpRight, Cable, CheckCircle2, CircleAlert, CloudUpload, Download, FileSpreadsheet, RefreshCw, Trash2, Unplug } from 'lucide-react'
+import {
+  ArrowUpRight,
+  BarChart3,
+  Cable,
+  CalendarDays,
+  CheckCircle2,
+  CircleAlert,
+  Clock3,
+  CloudUpload,
+  Download,
+  FileSpreadsheet,
+  History,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+  Unplug,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
 import { parseAttendanceCsv, type ImportedRecord } from '@/lib/portal-csv'
@@ -132,7 +148,7 @@ export function PortalSyncPanel() {
     if (!window.confirm('Delete only your external portal-imported attendance? Official AttendX classroom attendance will not change.')) return
     setBusy(true)
     try {
-      await apiFetch('/api/student/portal-import', { method: 'DELETE' })
+      await apiFetch('/api/student/portal/data', { method: 'DELETE' })
       setRecords([])
       setUpdatedAt(null)
       setPending(null)
@@ -194,76 +210,133 @@ export function PortalSyncPanel() {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="mb-2 flex items-center gap-2">
-            <Badge variant="outline">Scholars24 · External portal</Badge>
-            <Badge variant="secondary">Separate attendance data</Badge>
+    <div className="page-enter space-y-5">
+      <section className="relative overflow-hidden rounded-2xl border border-primary/15 bg-[linear-gradient(135deg,oklch(0.98_0.01_262)_0%,oklch(0.96_0.025_262)_58%,oklch(0.94_0.035_235)_100%)] p-5 shadow-sm dark:bg-[linear-gradient(135deg,oklch(0.22_0.025_262)_0%,oklch(0.19_0.035_262)_58%,oklch(0.17_0.04_235)_100%)] sm:p-7">
+        <div className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-primary/10 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 right-1/3 size-32 rounded-full bg-sky-400/10 blur-2xl" />
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <Badge className="gap-1.5 border-primary/20 bg-primary/10 text-primary" variant="outline">
+                <Cable className="size-3.5" /> Scholars24
+              </Badge>
+              <Badge variant="secondary" className="gap-1.5">
+                <ShieldCheck className="size-3.5" /> External data, isolated
+              </Badge>
+            </div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary/75">Portal workspace</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Your college attendance, in one secure place</h2>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+              Import an official report or retry Scholars24 sync. External records stay separate from teacher-marked AttendX attendance.
+            </p>
           </div>
-          <h2 className="text-xl font-semibold tracking-tight">Scholars24 attendance sync</h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Keep an independent, account-backed copy of your external attendance in AttendX.
+          <Button variant="outline" asChild className="w-full bg-background/70 backdrop-blur sm:w-auto">
+            <a href={PORTAL_URL} target="_blank" rel="noreferrer">
+              Open official portal <ArrowUpRight className="ml-2 size-4" />
+            </a>
+          </Button>
+        </div>
+      </section>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary"><BarChart3 className="size-4" /></span>
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Overall</span>
+          </div>
+          <p className="mt-4 text-3xl font-semibold tabular-nums">{records.length ? `${percentage}%` : '—'}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{attended} attended / {records.length} records</p>
+        </div>
+        <div className="rounded-2xl border bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="grid size-9 place-items-center rounded-xl bg-chart-1/10 text-chart-1"><CalendarDays className="size-4" /></span>
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Subjects</span>
+          </div>
+          <p className="mt-4 text-3xl font-semibold tabular-nums">{summaries.length}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Imported subject summaries</p>
+        </div>
+        <div className="rounded-2xl border bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="grid size-9 place-items-center rounded-xl bg-amber-500/10 text-amber-600"><Clock3 className="size-4" /></span>
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Last update</span>
+          </div>
+          <p className="mt-4 text-base font-semibold">
+            {portalStatus?.connection.lastSuccessfulSyncAt
+              ? new Date(portalStatus.connection.lastSuccessfulSyncAt).toLocaleDateString()
+              : updatedAt
+                ? new Date(updatedAt).toLocaleDateString()
+                : 'No sync yet'}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {portalStatus?.connection.lastSuccessfulSyncAt || updatedAt
+              ? new Date(portalStatus?.connection.lastSuccessfulSyncAt ?? updatedAt!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : 'CSV or live data'}
           </p>
         </div>
-        <Button variant="outline" asChild>
-          <a href={PORTAL_URL} target="_blank" rel="noreferrer">Open Scholars24 <ArrowUpRight className="ml-2 size-4" /></a>
-        </Button>
       </div>
 
-      <Card className="border-primary/20">
-        <CardContent className="grid gap-4 p-5 md:grid-cols-[1fr_auto] md:items-center">
-          <div className="flex items-start gap-3">
-            <span className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-600">
-              {portalStatus?.adapter.available ? <CheckCircle2 className="size-5" /> : <CircleAlert className="size-5" />}
+      <Card className="overflow-hidden border-primary/15 shadow-sm">
+        <CardContent className="grid gap-5 p-5 md:grid-cols-[1fr_auto] md:items-center md:p-6">
+          <div className="flex items-start gap-4">
+            <span className={`grid size-12 shrink-0 place-items-center rounded-2xl ${portalStatus?.adapter.available ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'}`}>
+              {portalStatus?.adapter.available ? <CheckCircle2 className="size-6" /> : <CircleAlert className="size-6" />}
             </span>
-            <div>
-              <p className="font-medium">
-                {portalStatus?.connection.status === 'CSV_ACTIVE'
-                  ? 'CSV fallback active'
-                  : portalStatus?.connection.status === 'READY'
-                    ? 'Authorized API ready'
-                    : 'Automatic sync not configured'}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-semibold">
+                  {portalStatus?.connection.status === 'CSV_ACTIVE'
+                    ? 'CSV fallback active'
+                    : portalStatus?.connection.status === 'READY'
+                      ? 'Authorized API ready'
+                      : 'Live connection pending'}
+                </p>
+                <Badge variant={portalStatus?.adapter.available ? 'default' : 'secondary'} className="text-[11px]">
+                  {portalStatus?.adapter.available ? 'Configured' : 'Authorization required'}
+                </Badge>
+              </div>
+              <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">
                 {portalStatus?.adapter.message ?? 'Scholars24 live authorization is pending an approved student API or OAuth grant.'}
               </p>
-              {portalStatus?.connection.lastSuccessfulSyncAt && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Last successful sync: {new Date(portalStatus.connection.lastSuccessfulSyncAt).toLocaleString()}
-                </p>
-              )}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 md:justify-end">
             <Button variant="outline" onClick={connectPortal} disabled={busy || loading}><Cable className="mr-2 size-4" />Connect</Button>
             <Button onClick={syncPortal} disabled={busy || loading}>
-              {busy ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}Sync now
+              {busy ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}
+              {busy ? 'Checking…' : 'Sync now'}
             </Button>
             {portalStatus?.connection.status !== 'NOT_CONFIGURED' && (
               <Button variant="ghost" onClick={disconnectPortal} disabled={busy}><Unplug className="mr-2 size-4" />Disconnect</Button>
             )}
           </div>
+          {busy && (
+            <div className="h-1 overflow-hidden rounded-full bg-muted md:col-span-2">
+              <div className="h-full w-2/3 animate-pulse rounded-full bg-primary" />
+            </div>
+          )}
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base"><FileSpreadsheet className="size-4 text-primary" /> Attendance import</CardTitle>
+        <CardHeader className="border-b bg-muted/20">
+          <CardTitle className="flex items-center gap-2 text-base"><span className="grid size-8 place-items-center rounded-lg bg-primary/10"><FileSpreadsheet className="size-4 text-primary" /></span>Attendance import</CardTitle>
           <CardDescription>
             CSV backup is available now. Sign in on the official Scholars24 site; never enter your college password into an unverified third-party form.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-col items-start justify-between gap-3 rounded-xl border border-dashed bg-muted/30 p-4 sm:flex-row sm:items-center">
+          <div className="group flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-primary/25 bg-[linear-gradient(135deg,transparent,oklch(0.52_0.17_262/0.035))] px-5 py-8 text-center transition-colors hover:border-primary/50 hover:bg-primary/[0.035]">
+            <span className="grid size-12 place-items-center rounded-2xl border bg-background shadow-sm transition-transform group-hover:-translate-y-0.5">
+              <CloudUpload className="size-5 text-primary" />
+            </span>
             <div>
-              <p className="font-medium">Import an attendance CSV</p>
-              <p className="mt-1 text-sm text-muted-foreground">Required columns: Subject, Date and Status (Present, Absent or Late). Maximum 3 MB.</p>
+              <p className="font-medium">Drop or choose an attendance report</p>
+              <p className="mt-1 text-sm text-muted-foreground">Subject, Date and Status · CSV · 3 MB maximum</p>
             </div>
             <input ref={inputRef} type="file" accept=".csv,text/csv" className="sr-only" onChange={handleFileChange} aria-label="Choose attendance CSV" />
             <Button onClick={() => inputRef.current?.click()} disabled={busy || loading}>
               {busy ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <CloudUpload className="mr-2 size-4" />}
-              Choose CSV
+              Choose CSV file
             </Button>
           </div>
 
@@ -302,7 +375,7 @@ export function PortalSyncPanel() {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={exportJson} disabled={!records.length}><Download className="mr-2 size-4" /> Export JSON</Button>
-              <Button variant="ghost" size="sm" onClick={clearImport} disabled={!records.length || busy}><Trash2 className="mr-2 size-4" /> Clear</Button>
+              <Button variant="ghost" size="sm" onClick={clearImport} disabled={busy}><Trash2 className="mr-2 size-4" /> Clear</Button>
             </div>
           </div>
         </CardHeader>
@@ -349,9 +422,9 @@ export function PortalSyncPanel() {
         </CardContent>
       </Card>
       {portalStatus?.history && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Sync history</CardTitle>
+        <Card className="overflow-hidden">
+          <CardHeader className="border-b bg-muted/20">
+            <CardTitle className="flex items-center gap-2 text-base"><span className="grid size-8 place-items-center rounded-lg bg-primary/10"><History className="size-4 text-primary" /></span>Sync history</CardTitle>
             <CardDescription>Recent CSV and Scholars24 synchronization attempts.</CardDescription>
           </CardHeader>
           <CardContent>
