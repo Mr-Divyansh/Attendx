@@ -31,3 +31,23 @@ The student-only endpoint `/api/student/portal-import` stores one current extern
 - `DELETE` clears only that student's external import.
 
 Direct Scholars24 authentication/session synchronization is not implemented yet. The portal login and authenticated data endpoints have not been verified, so AttendX must not collect or retain a Scholars24 password or session cookie. The CSV importer remains the supported fallback while a vendor-approved integration method is confirmed.
+
+## Live integration boundary
+
+The public Scholars24 Swagger document defines bearer-authenticated profile, course, timetable and attendance endpoints, but it does not publish a student OAuth/token issuance flow or a verified normalized response contract. AttendX therefore uses a deliberately blocked adapter:
+
+- Connect and Sync actions report `STUDENT_AUTHORIZATION_MISSING`.
+- No passwords, cookies, OTPs or portal access tokens are accepted in the browser.
+- Sync failures are recorded in the `PortalSyncHistory` model.
+- CSV data remains database-backed and student-owned.
+- A live provider can only be enabled after the college/vendor supplies an approved student-scoped API/OAuth grant and documented response schemas.
+
+## Server environment contract
+
+```env
+SCHOLARS24_STUDENT_SCOPED_API="true"
+SCHOLARS24_API_BASE_URL="https://authorized-provider.example"
+SCHOLARS24_API_BEARER_TOKEN="<server-managed-student-scoped-credential>"
+```
+
+All three values are server-only. Never expose the bearer token or commit it to Git. If live provider configuration is added, credentials must be resolved per student through an approved secret store and never reused across students.

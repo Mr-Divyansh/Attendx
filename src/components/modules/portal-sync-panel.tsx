@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUpRight, CheckCircle2, CloudUpload, Download, FileSpreadsheet, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowUpRight, Cable, CheckCircle2, CircleAlert, CloudUpload, Download, FileSpreadsheet, RefreshCw, Trash2, Unplug } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
 import { parseAttendanceCsv, type ImportedRecord } from '@/lib/portal-csv'
@@ -21,6 +21,22 @@ type StoredImport = {
 }
 
 type ImportResponse = { import: { id: string; source: string; updatedAt: string; records: StoredImport[] } | null }
+type PortalStatusResponse = {
+  connection: {
+    status: string
+    lastSuccessfulSyncAt: string | null
+    errorMessage: string | null
+  }
+  adapter: { available: boolean; message: string }
+  history: Array<{
+    id: string
+    syncType: string
+    status: string
+    source: string
+    startedAt: string
+    errorMessage: string | null
+  }>
+}
 
 export function PortalSyncPanel() {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -29,6 +45,7 @@ export function PortalSyncPanel() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
+  const [portalStatus, setPortalStatus] = useState<PortalStatusResponse | null>(null)
 
   const loadImport = useCallback(async () => {
     setLoading(true)
@@ -36,6 +53,11 @@ export function PortalSyncPanel() {
       const result = await apiFetch<ImportResponse>('/api/student/portal-import')
       setRecords(result.import?.records ?? [])
       setUpdatedAt(result.import?.updatedAt ?? null)
+      try {
+        setPortalStatus(await apiFetch<PortalStatusResponse>('/api/student/portal'))
+      } catch {
+        setPortalStatus(null)
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not load imported attendance.')
     } finally {
@@ -122,6 +144,45 @@ export function PortalSyncPanel() {
     }
   }
 
+  async function connectPortal() {
+    setBusy(true)
+    try {
+      await apiFetch('/api/student/portal', { method: 'POST' })
+      toast.info('Live sync is not configured. The CSV fallback remains available.')
+      await loadImport()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not check Scholars24 connection.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function syncPortal() {
+    setBusy(true)
+    try {
+      await apiFetch('/api/student/portal/sync', { method: 'POST' })
+    } catch (error) {
+      toast.info(error instanceof Error ? error.message : 'Live Scholars24 sync is unavailable.')
+      await loadImport()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function disconnectPortal() {
+    if (!window.confirm('Disconnect Scholars24 and keep currently imported attendance?')) return
+    setBusy(true)
+    try {
+      await apiFetch('/api/student/portal', { method: 'DELETE' })
+      toast.success('Scholars24 marked as disconnected.')
+      await loadImport()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not disconnect Scholars24.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   function exportJson() {
     const blob = new Blob([JSON.stringify(records, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -149,6 +210,42 @@ export function PortalSyncPanel() {
           <a href={PORTAL_URL} target="_blank" rel="noreferrer">Open Scholars24 <ArrowUpRight className="ml-2 size-4" /></a>
         </Button>
       </div>
+
+      <Card className="border-primary/20">
+        <CardContent className="grid gap-4 p-5 md:grid-cols-[1fr_auto] md:items-center">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-600">
+              {portalStatus?.adapter.available ? <CheckCircle2 className="size-5" /> : <CircleAlert className="size-5" />}
+            </span>
+            <div>
+              <p className="font-medium">
+                {portalStatus?.connection.status === 'CSV_ACTIVE'
+                  ? 'CSV fallback active'
+                  : portalStatus?.connection.status === 'READY'
+                    ? 'Authorized API ready'
+                    : 'Automatic sync not configured'}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {portalStatus?.adapter.message ?? 'Scholars24 live authorization is pending an approved student API or OAuth grant.'}
+              </p>
+              {portalStatus?.connection.lastSuccessfulSyncAt && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Last successful sync: {new Date(portalStatus.connection.lastSuccessfulSyncAt).toLocaleString()}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={connectPortal} disabled={busy || loading}><Cable className="mr-2 size-4" />Connect</Button>
+            <Button onClick={syncPortal} disabled={busy || loading}>
+              {busy ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}Sync now
+            </Button>
+            {portalStatus?.connection.status !== 'NOT_CONFIGURED' && (
+              <Button variant="ghost" onClick={disconnectPortal} disabled={busy}><Unplug className="mr-2 size-4" />Disconnect</Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -251,6 +348,34 @@ export function PortalSyncPanel() {
           )}
         </CardContent>
       </Card>
+      {portalStatus?.history && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Sync history</CardTitle>
+            <CardDescription>Recent CSV and Scholars24 synchronization attempts.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {portalStatus.history.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No synchronization attempts yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {portalStatus.history.slice(0, 10).map((item) => (
+                  <div key={item.id} className="flex flex-col gap-2 rounded-lg border px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-medium">{item.syncType} · {item.source}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(item.startedAt).toLocaleString()}</p>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant={item.status === 'SUCCESS' ? 'default' : 'secondary'}>{item.status}</Badge>
+                      {item.errorMessage && <p className="mt-1 max-w-sm text-xs text-muted-foreground">{item.errorMessage}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

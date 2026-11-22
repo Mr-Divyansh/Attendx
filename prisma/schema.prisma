@@ -27,14 +27,14 @@ datasource db {
 // ───────────────────────────────────────────────────────────
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String?
-  role         Role     @default(STUDENT)
-  disabled     Boolean  @default(false)
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String?
+  role          Role     @default(STUDENT)
+  disabled      Boolean  @default(false)
   emailVerified Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   admin                Admin?
   teacher              Teacher?
@@ -113,6 +113,12 @@ model Student {
 
   attendance           Attendance[]
   classroomMemberships ClassroomMember[]
+  portalConnection     PortalConnection?
+  portalSubjects       PortalImportedSubject[]
+  portalAttendance     PortalImportedAttendance[]
+  portalLectures       PortalImportedLecture[]
+  portalTimetables     PortalImportedTimetable[]
+  portalSyncHistory    PortalSyncHistory[]
   portalImports        PortalImport[]
 }
 
@@ -138,9 +144,9 @@ model Semester {
   teacher   Teacher? @relation("TeacherSemesters", fields: [teacherId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
-  students Student[]
-  subjects Subject[]
-  sections Section[]
+  students   Student[]
+  subjects   Subject[]
+  sections   Section[]
   classrooms Classroom[]
 }
 
@@ -178,30 +184,30 @@ model Subject {
 }
 
 model Classroom {
-  id           String            @id @default(cuid())
-  publicId     String            @unique
-  teacherId    String
-  teacher      Teacher           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  subjectId    String?
-  subject      Subject?          @relation(fields: [subjectId], references: [id])
-  name         String
-  course       String?
-  section      String?
-  semesterId   String?
-  semester     Semester?         @relation(fields: [semesterId], references: [id])
-  sectionId    String?
-  teachingMode String?           @default("COLLEGE")
-  room         String?
-  academicYear String?
-  year         Int? // academic year of study: 1–4 (Year 1, Year 2, …)
+  id            String            @id @default(cuid())
+  publicId      String            @unique
+  teacherId     String
+  teacher       Teacher           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subjectId     String?
+  subject       Subject?          @relation(fields: [subjectId], references: [id])
+  name          String
+  course        String?
+  section       String?
+  semesterId    String?
+  semester      Semester?         @relation(fields: [semesterId], references: [id])
+  sectionId     String?
+  teachingMode  String?           @default("COLLEGE")
+  room          String?
+  academicYear  String?
+  year          Int? // academic year of study: 1–4 (Year 1, Year 2, …)
   durationYears Int? // intended validity of the classroom: 1–4 years
-  expiresAt    DateTime? // computed end of class validity (createdAt + durationYears)
-  joinCode     String            @unique
-  inviteToken  String            @unique
-  createdAt    DateTime          @default(now())
-  members      ClassroomMember[]
-  attendance   Attendance[]
-  schedules    Timetable[]
+  expiresAt     DateTime? // computed end of class validity (createdAt + durationYears)
+  joinCode      String            @unique
+  inviteToken   String            @unique
+  createdAt     DateTime          @default(now())
+  members       ClassroomMember[]
+  attendance    Attendance[]
+  schedules     Timetable[]
 }
 
 model ClassroomMember {
@@ -261,13 +267,13 @@ model Attendance {
 // ───────────────────────────────────────────────────────────
 
 model PersonalUser {
-  id           String   @id @default(cuid())
-  fullName     String
-  username     String   @unique
-  passwordHash String
-  avatarUrl    String?
+  id            String   @id @default(cuid())
+  fullName      String
+  username      String   @unique
+  passwordHash  String
+  avatarUrl     String?
   emailVerified Boolean  @default(false)
-  createdAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
 
   timetable     PersonalTimetable[]
   attendance    PersonalAttendance[]
@@ -344,19 +350,18 @@ model CollegeNotification {
   createdAt DateTime @default(now())
 }
 
-
 // ───────────────────────────────────────────────────────────
 // ZONE 4 — Security & trust infrastructure
 // ───────────────────────────────────────────────────────────
 
 model OtpVerification {
-  id          String    @id @default(cuid())
-  email       String
-  purpose     String // register-student | register-teacher | register-personal | reset-password | change-email | admin-reset-password
-  hashedCode  String
-  expiresAt   DateTime
-  attempts    Int       @default(0)
-  createdAt   DateTime  @default(now())
+  id         String   @id @default(cuid())
+  email      String
+  purpose    String // register-student | register-teacher | register-personal | reset-password | change-email | admin-reset-password
+  hashedCode String
+  expiresAt  DateTime
+  attempts   Int      @default(0)
+  createdAt  DateTime @default(now())
 
   @@index([email, purpose])
 }
@@ -370,20 +375,155 @@ model RateLimit {
 }
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  actorId   String?
-  actorRole String? // ADMIN | TEACHER | STUDENT | PERSONAL
-  action    String // e.g. admin.create_user, admin.reset_password, admin.export
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorRole  String? // ADMIN | TEACHER | STUDENT | PERSONAL
+  action     String // e.g. admin.create_user, admin.reset_password, admin.export
   targetType String?
-  targetId  String?
-  details   Json?
-  ip        String?
-  createdAt DateTime @default(now())
+  targetId   String?
+  details    Json?
+  ip         String?
+  createdAt  DateTime @default(now())
 
   @@index([actorId])
   @@index([action])
 }
 
+// ──────────────────────────────────────────────────────────
+// ZONE 5 — Authorized external portal imports
+// ──────────────────────────────────────────────────────────
+
+model PortalConnection {
+  id                   String              @id @default(cuid())
+  studentId            String              @unique
+  student              Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  provider             String              @default("SCHOLARS24")
+  status               String              @default("NOT_CONFIGURED")
+  externalStudentId    String?
+  externalProfileName  String?
+  externalCourse       String?
+  externalSemester     String?
+  externalAcademicYear String?
+  lastAttemptAt        DateTime?
+  lastSuccessfulSyncAt DateTime?
+  connectedAt          DateTime?
+  disconnectedAt       DateTime?
+  errorCode            String?
+  errorMessage         String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  syncHistory          PortalSyncHistory[]
+
+  @@index([provider, status])
+}
+
+model PortalSyncHistory {
+  id            String            @id @default(cuid())
+  studentId     String
+  student       Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  connectionId  String?
+  connection    PortalConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  provider      String            @default("SCHOLARS24")
+  syncType      String
+  status        String
+  source        String
+  startedAt     DateTime          @default(now())
+  completedAt   DateTime?
+  importedCount Int               @default(0)
+  updatedCount  Int               @default(0)
+  skippedCount  Int               @default(0)
+  errorCode     String?
+  errorMessage  String?
+  details       Json?
+
+  @@index([studentId, startedAt])
+  @@index([studentId, status])
+}
+
+model PortalImportedSubject {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  externalKey String
+  provider    String   @default("SCHOLARS24")
+  subjectName String
+  subjectCode String?
+  teacherName String?
+  semester    String?
+  source      String
+  importedAt  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([studentId, externalKey])
+  @@index([studentId, provider])
+}
+
+model PortalImportedAttendance {
+  id              String   @id @default(cuid())
+  studentId       String
+  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  externalKey     String
+  provider        String   @default("SCHOLARS24")
+  subjectName     String
+  subjectCode     String?
+  attendanceDate  String
+  status          String
+  totalLectures   Int?
+  presentLectures Int?
+  absentLectures  Int?
+  percentage      Float?
+  source          String
+  importedAt      DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([studentId, externalKey])
+  @@index([studentId, attendanceDate])
+  @@index([studentId, subjectName])
+}
+
+model PortalImportedLecture {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  externalKey String
+  provider    String   @default("SCHOLARS24")
+  lectureDate String
+  subjectName String
+  subjectCode String?
+  teacherName String?
+  startTime   String?
+  endTime     String?
+  room        String?
+  status      String?
+  source      String
+  importedAt  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([studentId, externalKey])
+  @@index([studentId, lectureDate])
+}
+
+model PortalImportedTimetable {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  externalKey String
+  provider    String   @default("SCHOLARS24")
+  weekday     String
+  subjectName String
+  subjectCode String?
+  teacherName String?
+  startTime   String?
+  endTime     String?
+  room        String?
+  semester    String?
+  source      String
+  importedAt  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([studentId, externalKey])
+  @@index([studentId, weekday])
+}
 
 // ───────────────────────────────────────────────────────────
 // External student portal imports (kept separate from teacher attendance)
@@ -401,14 +541,14 @@ model PortalImport {
 }
 
 model PortalAttendanceRecord {
-  id         String      @id @default(cuid())
-  importId   String
+  id           String       @id @default(cuid())
+  importId     String
   portalImport PortalImport @relation(fields: [importId], references: [id], onDelete: Cascade)
-  subject    String
-  date       String
-  status     String
-  source     String
-  importedAt DateTime    @default(now())
+  subject      String
+  date         String
+  status       String
+  source       String
+  importedAt   DateTime     @default(now())
 
   @@unique([importId, subject, date, status])
   @@index([importId, date])

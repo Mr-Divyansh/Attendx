@@ -27,8 +27,9 @@ Built with Next.js 16, TypeScript, Prisma, PostgreSQL, Tailwind CSS, and shadcn/
 ### External portal import
 
 - Open the Student Dashboard and select **Portal Sync**.
-- Import a CSV with **Subject**, **Date**, and **Status** columns. Imports are stored in the database against the signed-in student account and are available across devices. See [the portal import guide](docs/portal-import.md).
-- Direct Scholars24 login/session sync is not yet enabled: the vendor's authentication and data-access contract must be verified before AttendX can safely connect to the account.
+- Import a CSV with **Subject**, **Date**, and **Status** columns. Imports are validated and stored in PostgreSQL against the signed-in student account and are available across devices.
+- The public Scholars24 Swagger document exposes a Bearer-authenticated API, but it does not publish a verified student OAuth/token flow or normalized response contract. Automatic sync remains blocked until the college/vendor supplies that authorization.
+- AttendX never accepts or stores Scholars24 passwords, cookies, OTPs or portal access tokens through the browser. See [the portal integration guide](docs/portal-import.md).
 
 ### Admin and personal tracker
 

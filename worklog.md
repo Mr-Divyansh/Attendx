@@ -17,10 +17,6 @@ Work Log:
 Task ID: 4
 Agent: full-stack-developer (Admin module)
 Task: Build Admin module — stats, CRUD students/teachers/subjects/sections/semesters, timetable, export, backup, password reset
-Task: Build Admin module — stats, CRUD students/teachers/subjects/sections/semesters, timetable, export, backup, password reset
-Task: Build Admin module — stats, CRUD students/teachers/subjects/sections/semesters, timetable, export, backup, password reset
-Task: Build Admin module — stats, CRUD students/teachers/subjects/sections/semesters, timetable, export, backup, password reset
-Task: Build Admin module — stats, CRUD students/teachers/subjects/sections/semesters, timetable, export, backup, password reset
 
 Work Log:
 - Read worklog.md, prisma/schema.prisma, lib/auth.ts, lib/db.ts, lib/api.ts, stores/auth-store.ts, components/dashboard-shell.tsx, existing UI primitives (table, dialog, select, alert-dialog, button, input, label, badge, skeleton) to align with shared conventions.
