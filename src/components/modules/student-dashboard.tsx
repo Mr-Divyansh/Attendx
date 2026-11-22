@@ -112,6 +112,7 @@ type WeekRow = {
   date: string
   total: number
   attended: number
+  missed: number
   pct: number
 }
 
