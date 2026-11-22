@@ -20,6 +20,6 @@ export function getScholars24AdapterStatus(): PortalAdapterStatus {
     status: 'NOT_CONFIGURED',
     code: 'STUDENT_AUTHORIZATION_MISSING',
     message:
-      'No documented, student-authorized Scholars24 API grant is configured. CSV import remains available.',
+      'Blocked: the public Swagger has no verified student OAuth/delegated grant, token expiry/refresh contract, session_guid identity mapping, or actual student attendance-record response contract. CSV import remains available.',
   }
 }

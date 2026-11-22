@@ -3,7 +3,7 @@
 // AttendX — client-side auth + view state (Zustand)
 import { create } from 'zustand'
 
-export type Role = 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PERSONAL'
+export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PERSONAL'
 
 export type SessionUser = {
   id: string
@@ -56,7 +56,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   setUser: (u) => {
     if (u) {
       const view: View =
-        u.role === 'ADMIN'
+        u.role === 'SUPER_ADMIN' || u.role === 'ADMIN'
           ? 'admin'
           : u.role === 'TEACHER'
           ? 'teacher'

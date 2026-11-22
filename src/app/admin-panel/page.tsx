@@ -4,9 +4,11 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/stores/auth-store'
 import { AdminDashboard } from '@/components/modules/admin-dashboard'
+import { MasterAdminDashboard } from '@/components/modules/master-admin-dashboard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/password-input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { apiFetch } from '@/lib/api'
@@ -19,6 +21,7 @@ export default function AdminPanelPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [loginRole, setLoginRole] = useState<'ADMIN' | 'SUPER_ADMIN'>('ADMIN')
   const [loading, setLoading] = useState(false)
   const [booting, setBooting] = useState(true)
 
@@ -34,7 +37,7 @@ export default function AdminPanelPage() {
         '/api/auth/login',
         {
           method: 'POST',
-          body: JSON.stringify({ email, password, role: 'ADMIN' }),
+          body: JSON.stringify({ email, password, role: loginRole }),
         }
       )
       if (data.ok) {
@@ -57,7 +60,7 @@ export default function AdminPanelPage() {
     )
   }
 
-  if (!user || user.role !== 'ADMIN') {
+  if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN')) {
     return (
       <div className="min-h-screen bg-muted/30 flex items-center justify-center p-6">
         <Card className="w-full max-w-md shadow-lg">
@@ -69,6 +72,10 @@ export default function AdminPanelPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="button" variant={loginRole === 'ADMIN' ? 'default' : 'outline'} onClick={() => setLoginRole('ADMIN')}>Admin</Button>
+                <Button type="button" variant={loginRole === 'SUPER_ADMIN' ? 'default' : 'outline'} onClick={() => setLoginRole('SUPER_ADMIN')}>Master Admin</Button>
+              </div>
               <div className="space-y-1.5">
                 <Label htmlFor="admin-email">Admin email</Label>
                 <Input
@@ -81,13 +88,18 @@ export default function AdminPanelPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="admin-password">Password</Label>
-                <Input
+                <PasswordInput
                   id="admin-password"
-                  type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
                   required
                 />
+              </div>
+              <div className="-mt-2 flex justify-end">
+                <a href="/forgot-password?accountType=college" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+                  Forgot password?
+                </a>
               </div>
               <Button className="w-full h-11" disabled={loading}>
                 {loading ? 'Signing in…' : 'Continue to admin dashboard'}
@@ -106,5 +118,5 @@ export default function AdminPanelPage() {
     )
   }
 
-  return <AdminDashboard />
+  return user.role === 'SUPER_ADMIN' ? <MasterAdminDashboard /> : <AdminDashboard />
 }

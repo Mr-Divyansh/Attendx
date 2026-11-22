@@ -9,10 +9,13 @@ import {
   errorResponse,
   AuthError,
   assertCsrf,
+  destroySession,
+  handleRouteError,
 } from '@/lib/auth'
 import { rateLimit, RULES } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/authz'
 import { validatePasswordPolicy } from '@/lib/security'
+import { sendPasswordChangedNotification } from '@/lib/email'
 
 export const runtime = 'nodejs'
 
@@ -40,16 +43,28 @@ export async function POST(req: NextRequest) {
       rule: RULES.changePassword,
     })
 
-    const { currentPassword, newPassword } = await parseBody<{
+    const { currentPassword, newPassword, confirm } = await parseBody<{
       currentPassword?: string
       newPassword?: string
+      confirm?: string
     }>(req)
 
-    if (!newPassword) {
-      return errorResponse('New password is required', 400)
+    if (
+      typeof newPassword !== 'string' ||
+      typeof confirm !== 'string' ||
+      (currentPassword !== undefined && typeof currentPassword !== 'string')
+    ) {
+      return errorResponse('New password and confirmation are required', 400)
+    }
+    if (newPassword !== confirm) return errorResponse('New passwords do not match', 400)
+    if (newPassword.length > 128 || (currentPassword && currentPassword.length > 128)) {
+      return errorResponse('Password must be at most 128 characters long', 400)
     }
 
-    const user = await db.user.findUnique({ where: { id: session.id } })
+    const user = await db.user.findUnique({
+      where: { id: session.id },
+      include: { admin: true, teacher: true, student: true },
+    })
     if (!user) {
       throw new AuthError('Account not found', 404)
     }
@@ -59,23 +74,54 @@ export async function POST(req: NextRequest) {
         return errorResponse('Current password is incorrect', 401)
       }
     }
+    if (user.passwordHash && verifyPassword(newPassword, user.passwordHash)) {
+      return errorResponse('Choose a password you have not used before.', 400)
+    }
 
     const policy = validatePasswordPolicy(newPassword, {
       email: user.email,
-      name: user.email,
+      name: user.admin?.fullName || user.teacher?.fullName || user.student?.fullName || user.email,
     })
     if (!policy.ok) {
       return errorResponse(policy.reason, 400)
     }
 
-    await db.user.update({
-      where: { id: user.id },
-      data: { passwordHash: hashPassword(newPassword) },
+    const now = new Date()
+    const changed = await db.$transaction(async (tx) => {
+      const result = await tx.user.updateMany({
+        where: {
+          id: user.id,
+          passwordHash: user.passwordHash,
+          securityVersion: user.securityVersion,
+          disabled: false,
+        },
+        data: {
+          passwordHash: hashPassword(newPassword),
+          securityVersion: { increment: 1 },
+          passwordChangedAt: now,
+        },
+      })
+      if (result.count === 1) {
+        await tx.passwordResetToken.updateMany({
+          where: { userId: user.id, usedAt: null },
+          data: { usedAt: now },
+        })
+      }
+      return result
     })
+    if (changed.count !== 1) throw new AuthError('Your account changed. Sign in again and retry.', 409)
 
-    return json({ ok: true })
+    await destroySession()
+    try {
+      await sendPasswordChangedNotification(user.email)
+    } catch (error) {
+      console.error('[auth/change-password] notification delivery failed', {
+        errorType: error instanceof Error ? error.name : 'unknown',
+      })
+    }
+    return json({ ok: true, reauthenticate: true })
   } catch (e) {
     if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    return errorResponse('Unable to change password. Please try again later.', 500)
+    return handleRouteError(e, 'auth/change-password')
   }
 }

@@ -23,6 +23,7 @@ Built with Next.js 16, TypeScript, Prisma, PostgreSQL, Tailwind CSS, and shadcn/
 - View teacher-recorded attendance and attendance summaries.
 - Attendance records are read-only for students.
 - Import personal attendance exports from an external college portal. Imported records are stored against the signed-in student account and remain separate from AttendX classroom records.
+- Open **Security** to change the account password, review supported sign-in/session details, and request a secure reset link.
 
 ### External portal import
 
@@ -36,7 +37,7 @@ Built with Next.js 16, TypeScript, Prisma, PostgreSQL, Tailwind CSS, and shadcn/
 - Admin management for users and the global academic catalogue.
 - Independent personal attendance tracking, isolated from school/college data.
 - Email/password authentication, Google OAuth, session cookies, CSRF protection, and role checks.
-- **Email OTP verification** for registration, password reset, and email changes.
+- **Email OTP verification** for registration and email changes, plus secure single-use password-reset links.
 
 ## Run locally
 
@@ -44,7 +45,7 @@ Built with Next.js 16, TypeScript, Prisma, PostgreSQL, Tailwind CSS, and shadcn/
 
 - Node.js 20 or newer
 - A PostgreSQL database (Neon works well)
-- Gmail account with App Password (for OTP emails)
+- Configured SMTP email provider (for verification and password-reset emails)
 
 ### Setup
 
@@ -59,11 +60,30 @@ DATABASE_URL="postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require"
 ATTENDX_SECRET="$(openssl rand -hex 32)"
 ```
 
-**Required for OTP emails:**
+## Secure Master Admin bootstrap
+
+Create the owner account normally, then configure these server-only environment variables and restart the application:
+
+```env
+ATTENDX_SUPER_ADMIN_EMAIL="owner@example.com"
+ATTENDX_SUPER_ADMIN_BOOTSTRAP_SECRET="<random-secret-at-least-32-characters>"
+```
+
+At startup AttendX promotes only the account matching `ATTENDX_SUPER_ADMIN_EMAIL` to `SUPER_ADMIN`. It does not create passwords or public default accounts. Remove or rotate the bootstrap secret after the promotion. The bootstrap is idempotent and must not be placed in frontend code or Git.
+
+**Required for verification and password-reset emails:**
 ```env
 SMTP_USER="your-email@gmail.com"
 SMTP_PASS="your-gmail-app-password"
 ```
+
+Set the canonical application URL in production. Reset links are generated from this trusted value—not from the request Host header:
+
+```env
+ATTENDX_APP_URL="https://attendx-ashy.vercel.app"
+```
+
+`NEXT_PUBLIC_APP_URL` is accepted as a compatibility fallback. Production values must be HTTPS and should match the deployed application URL (including the intended Preview URL when testing a Preview deployment). SMTP delivery and sender-domain verification must be tested with the configured provider before relying on password reset in production.
 
 Get a Gmail App Password:
 1. Go to Google Account → Security
@@ -129,6 +149,19 @@ npx prisma validate
 npx tsc --noEmit
 npm run build
 ```
+
+## Scholars24 local companion
+
+AttendX uses an optional local Playwright companion for user-approved browser automation. It does not receive or store Scholars24 passwords, OTPs, cookies or bearer tokens.
+
+```powershell
+npm run companion:install-browser
+npm run companion:pair
+npm run companion:start
+npm run companion:clear
+```
+
+The companion stores its dedicated browser profile outside the repository at `%USERPROFILE%\.attendx\scholars24-browser-profile`. Full setup and limitation details are in [the companion guide](tools/scholars24-companion/README.md).
 
 ## Security notes
 

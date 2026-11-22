@@ -66,7 +66,8 @@ AttendX is an attendance-management application for schools, colleges, and unive
 * **External portal import**: Student Dashboard has a browser-local CSV importer for personal attendance exports. Imported records stay separate from teacher-marked records, are scoped in localStorage by student account, and can be exported as JSON. No Scholars24 API integration is enabled until official read-only API documentation and credentials are verified.
 * **Admin panel**: User/academic-catalogue CRUD, stats overview, attendance CSV export, JSON backup, password reset, timetable management, departments/semesters/sections management.
 * **Personal tracker**: Independent isolated attendance tracking — register/login, today's quick-mark, weekly/monthly charts, attendance predictor, goal setting (75/80/85/90%), timetable manager, settings (dark mode, password change, delete account).
-* **Authentication**: Email/password (scrypt hashing), Google OAuth, email OTP verification (registration, password reset, email change), session cookies, CSRF protection, rate limiting.
+* **Authentication**: Email/password (scrypt hashing), Google OAuth, email OTP verification (registration and email change), single-use password-reset links, session cookies, CSRF protection, rate limiting.
+* **Account security**: Student dashboard Security section; hashed 30-minute reset tokens for college and Personal Tracker accounts; password changes/resets revoke sessions through `securityVersion`; transactional emails use Nodemailer SMTP and a trusted canonical app URL.
 
 ### Database
 
@@ -76,6 +77,7 @@ PostgreSQL via Prisma. Schema split into zones:
 * **Zone 2 — Academic Structure**: `Department`, `Semester`, `Section`, `Subject`, `Classroom`, `ClassroomMember`, `Timetable`, `Attendance`
 * **Zone 3 — Personal Mode (isolated)**: `PersonalUser`, `PersonalTimetable`, `PersonalAttendance`, `Notification`, `Setting`
 * **Zone 4 — Security/Trust**: `OtpVerification`, `RateLimit`, `AuditLog`, `SystemSetting`, `CollegeNotification`
+* Password reset tokens are stored by SHA-256 hash in `PasswordResetToken`, with an exactly-one-owner database constraint and cascading owner foreign keys.
 
 Key details: `User.role` enum (`ADMIN | TEACHER | STUDENT`), session role also supports `PERSONAL`. Compound uniques on Attendance and PersonalTimetable. Classrooms have `publicId`, `joinCode`, `inviteToken`, `expiresAt`. Audit columns `markedById`/`markedAt` on Attendance. `Setting.goalPct` validates to {75,80,85,90}.
 
@@ -86,6 +88,7 @@ Key details: `User.role` enum (`ADMIN | TEACHER | STUDENT`), session role also s
 * **Session-based custom auth** instead of relying solely on next-auth for the primary flow; next-auth only used for Google OAuth.
 * **Dynamic import in instrumentation**: `src/instrumentation.ts` must NOT statically import `auth.ts` (which pulls Node `crypto` into the Edge bundle and causes build warnings). It uses `process.env.NEXT_RUNTIME === 'nodejs'` guard + dynamic import instead.
 * **Strict password policy**: 12+ chars with upper/lower/digit/special, denylist, no email/name substrings.
+* **Reset links**: tokens are URL fragments, removed from browser history after capture, and submitted only in a POST body; production links require `ATTENDX_APP_URL` or the trusted `NEXT_PUBLIC_APP_URL` fallback.
 * **OTP + rate limiting** on all sensitive endpoints — required for production.
 * **Admin role enforcement on server** — not just frontend hiding.
 
@@ -122,6 +125,13 @@ npm run lint               # eslint
 * Kept imported portal attendance separate from teacher-marked AttendX data; the importer does not alter classroom attendance records.
 * Documented the Scholars24 integration boundary: automatic sync requires official student-authorized read-only API documentation and credentials. Portal passwords, cookies, and session tokens are not collected.
 * Refined shared dashboard navigation, responsive content spacing, card surfaces, and control interaction styling.
+
+#### 2026-11-23 — Account security and password recovery
+
+* Added additive Prisma fields and `PasswordResetToken` storage for hashed, expiring, single-use reset links owned by either a college account or Personal Tracker account.
+* Added reset request/completion APIs with CSRF checks, account/IP rate limits, generic responses, password policy validation, session revocation, and password-change notifications.
+* Added student Account Security navigation/panel, reset request and reset completion screens, reusable accessible password visibility controls, and shared pressed-state feedback.
+* SMTP delivery and sender-domain verification remain deployment configuration and require manual validation.
 
 #### 2026-08-18
 

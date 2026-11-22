@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/password-input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -758,9 +759,8 @@ export function AuthModal() {
               <Field label="Password" htmlFor="student-password">
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                  <Input
+                  <PasswordInput
                     id="student-password"
-                    type="password"
                     autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -769,6 +769,11 @@ export function AuthModal() {
                   />
                 </div>
               </Field>
+              <div className="-mt-2 flex justify-end">
+                <a href="/forgot-password?accountType=college" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+                  Forgot password?
+                </a>
+              </div>
               <Button type="submit" className="w-full h-11" disabled={busy}>
                 {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Lock className="size-4 mr-2" />}
                 Sign In
@@ -837,9 +842,8 @@ export function AuthModal() {
               </Field>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Password" htmlFor="student-reg-pass">
-                  <Input
+                  <PasswordInput
                     id="student-reg-pass"
-                    type="password"
                     autoComplete="new-password"
                     value={reg.password}
                     onChange={(e) => setReg((r) => ({ ...r, password: e.target.value }))}
@@ -848,9 +852,8 @@ export function AuthModal() {
                   />
                 </Field>
                 <Field label="Confirm Password" htmlFor="student-reg-confirm">
-                  <Input
+                  <PasswordInput
                     id="student-reg-confirm"
-                    type="password"
                     autoComplete="new-password"
                     value={reg.confirm}
                     onChange={(e) => setReg((r) => ({ ...r, confirm: e.target.value }))}
@@ -951,9 +954,8 @@ export function AuthModal() {
               <Field label="Password" htmlFor="teacher-password">
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                  <Input
+                  <PasswordInput
                     id="teacher-password"
-                    type="password"
                     autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -962,6 +964,11 @@ export function AuthModal() {
                   />
                 </div>
               </Field>
+              <div className="-mt-2 flex justify-end">
+                <a href="/forgot-password?accountType=college" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+                  Forgot password?
+                </a>
+              </div>
               <Button type="submit" className="w-full h-11" disabled={busy}>
                 {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Users className="size-4 mr-2" />}
                 Sign In
@@ -1034,9 +1041,8 @@ export function AuthModal() {
               </Field>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Password" htmlFor="teacher-reg-pass">
-                  <Input
+                  <PasswordInput
                     id="teacher-reg-pass"
-                    type="password"
                     autoComplete="new-password"
                     value={teacherReg.password}
                     onChange={(e) =>
@@ -1047,9 +1053,8 @@ export function AuthModal() {
                   />
                 </Field>
                 <Field label="Confirm" htmlFor="teacher-reg-confirm">
-                  <Input
+                  <PasswordInput
                     id="teacher-reg-confirm"
-                    type="password"
                     autoComplete="new-password"
                     value={teacherReg.confirm}
                     onChange={(e) =>
@@ -1170,9 +1175,8 @@ export function AuthModal() {
                 />
               </Field>
               <Field label="Password" htmlFor="personal-password">
-                <Input
+                <PasswordInput
                   id="personal-password"
-                  type="password"
                   autoComplete="current-password"
                   value={personal.password}
                   onChange={(e) =>
@@ -1182,6 +1186,11 @@ export function AuthModal() {
                   required
                 />
               </Field>
+              <div className="-mt-2 flex justify-end">
+                <a href="/forgot-password?accountType=personal" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+                  Forgot password?
+                </a>
+              </div>
               <Button type="submit" className="w-full h-11" disabled={busy}>
                 {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : <UserRound className="size-4 mr-2" />}
                 Sign In
@@ -1238,9 +1247,8 @@ export function AuthModal() {
               </Field>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Password" htmlFor="personal-reg-pass">
-                  <Input
+                  <PasswordInput
                     id="personal-reg-pass"
-                    type="password"
                     autoComplete="new-password"
                     value={personal.password}
                     onChange={(e) =>
@@ -1251,9 +1259,8 @@ export function AuthModal() {
                   />
                 </Field>
                 <Field label="Confirm" htmlFor="personal-reg-confirm">
-                  <Input
+                  <PasswordInput
                     id="personal-reg-confirm"
-                    type="password"
                     autoComplete="new-password"
                     value={personal.confirm}
                     onChange={(e) =>

@@ -27,23 +27,28 @@ datasource db {
 // ───────────────────────────────────────────────────────────
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
+  id            String    @id @default(cuid())
+  email         String    @unique
   passwordHash  String?
-  role          Role     @default(STUDENT)
-  disabled      Boolean  @default(false)
-  emailVerified Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  securityVersion Int     @default(0)
+  passwordChangedAt DateTime?
+  role          Role      @default(STUDENT)
+  disabled      Boolean   @default(false)
+  lastLoginAt   DateTime?
+  emailVerified Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   admin                Admin?
   teacher              Teacher?
   student              Student?
   authAccounts         AuthAccount[]
   collegeNotifications CollegeNotification[]
+  passwordResetTokens  PasswordResetToken[]
 }
 
 enum Role {
+  SUPER_ADMIN
   ADMIN
   TEACHER
   STUDENT
@@ -111,15 +116,18 @@ model Student {
   profileComplete Boolean   @default(false)
   createdAt       DateTime  @default(now())
 
-  attendance           Attendance[]
-  classroomMemberships ClassroomMember[]
-  portalConnection     PortalConnection?
-  portalSubjects       PortalImportedSubject[]
-  portalAttendance     PortalImportedAttendance[]
-  portalLectures       PortalImportedLecture[]
-  portalTimetables     PortalImportedTimetable[]
-  portalSyncHistory    PortalSyncHistory[]
-  portalImports        PortalImport[]
+  attendance              Attendance[]
+  classroomMemberships    ClassroomMember[]
+  portalConnection        PortalConnection?
+  portalSubjects          PortalImportedSubject[]
+  portalAttendance        PortalImportedAttendance[]
+  portalLectures          PortalImportedLecture[]
+  portalTimetables        PortalImportedTimetable[]
+  portalSyncHistory       PortalSyncHistory[]
+  portalCompanionDevices  PortalCompanionDevice[]
+  portalCompanionPairings PortalCompanionPairing[]
+  portalCompanionJobs     PortalCompanionJob[]
+  portalImports           PortalImport[]
 }
 
 // ───────────────────────────────────────────────────────────
@@ -271,6 +279,8 @@ model PersonalUser {
   fullName      String
   username      String   @unique
   passwordHash  String
+  securityVersion Int    @default(0)
+  passwordChangedAt DateTime?
   avatarUrl     String?
   emailVerified Boolean  @default(false)
   createdAt     DateTime @default(now())
@@ -279,6 +289,7 @@ model PersonalUser {
   attendance    PersonalAttendance[]
   notifications Notification[]
   settings      Setting?
+  passwordResetTokens PasswordResetToken[]
 }
 
 model PersonalTimetable {
@@ -366,6 +377,22 @@ model OtpVerification {
   @@index([email, purpose])
 }
 
+model PasswordResetToken {
+  id             String        @id @default(cuid())
+  tokenHash      String        @unique
+  userId         String?
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personalUserId String?
+  personalUser   PersonalUser? @relation(fields: [personalUserId], references: [id], onDelete: Cascade)
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime      @default(now())
+
+  @@index([userId, createdAt])
+  @@index([personalUserId, createdAt])
+  @@index([expiresAt])
+}
+
 model RateLimit {
   id        String   @id @default(cuid())
   key       String   @unique
@@ -438,6 +465,60 @@ model PortalSyncHistory {
 
   @@index([studentId, startedAt])
   @@index([studentId, status])
+}
+
+model PortalCompanionPairing {
+  id        String    @id @default(cuid())
+  studentId String
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  codeHash  String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([studentId, createdAt])
+  @@index([expiresAt])
+}
+
+model PortalCompanionDevice {
+  id         String               @id @default(cuid())
+  studentId  String
+  student    Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  secretHash String
+  name       String
+  status     String               @default("PENDING")
+  lastSeenAt DateTime?
+  pairedAt   DateTime             @default(now())
+  revokedAt  DateTime?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+  jobs       PortalCompanionJob[]
+
+  @@unique([studentId, secretHash])
+  @@index([studentId, status])
+  @@index([lastSeenAt])
+}
+
+model PortalCompanionJob {
+  id           String                @id @default(cuid())
+  studentId    String
+  student      Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  deviceId     String
+  device       PortalCompanionDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  type         String
+  status       String                @default("QUEUED")
+  payload      Json?
+  result       Json?
+  errorCode    String?
+  errorMessage String?
+  queuedAt     DateTime              @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+  expiresAt    DateTime
+
+  @@index([deviceId, status, queuedAt])
+  @@index([studentId, queuedAt])
+  @@index([expiresAt])
 }
 
 model PortalImportedSubject {

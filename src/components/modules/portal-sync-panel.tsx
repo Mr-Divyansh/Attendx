@@ -54,6 +54,11 @@ type PortalStatusResponse = {
   }>
 }
 
+type CompanionStatus = {
+  devices: Array<{ id: string; name: string; status: string; lastSeenAt: string | null; pairedAt: string }>
+  jobs: Array<{ id: string; type: string; status: string; errorCode: string | null; errorMessage: string | null; result: { imported?: number; duplicates?: number; skipped?: number } | null; queuedAt: string; startedAt: string | null; completedAt: string | null }>
+}
+
 export function PortalSyncPanel() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [records, setRecords] = useState<StoredImport[]>([])
@@ -62,6 +67,19 @@ export function PortalSyncPanel() {
   const [busy, setBusy] = useState(false)
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [portalStatus, setPortalStatus] = useState<PortalStatusResponse | null>(null)
+  const [companion, setCompanion] = useState<CompanionStatus | null>(null)
+  const [companionError, setCompanionError] = useState<string | null>(null)
+  const [pairCode, setPairCode] = useState<{ code: string; expiresAt: string } | null>(null)
+
+  const loadCompanion = useCallback(async () => {
+    try {
+      setCompanion(await apiFetch<CompanionStatus>('/api/student/portal/companion'))
+      setCompanionError(null)
+    } catch (error) {
+      setCompanion(null)
+      setCompanionError(error instanceof Error ? error.message : 'Could not load companion status.')
+    }
+  }, [])
 
   const loadImport = useCallback(async () => {
     setLoading(true)
@@ -69,19 +87,63 @@ export function PortalSyncPanel() {
       const result = await apiFetch<ImportResponse>('/api/student/portal-import')
       setRecords(result.import?.records ?? [])
       setUpdatedAt(result.import?.updatedAt ?? null)
-      try {
-        setPortalStatus(await apiFetch<PortalStatusResponse>('/api/student/portal'))
-      } catch {
-        setPortalStatus(null)
-      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not load imported attendance.')
-    } finally {
-      setLoading(false)
     }
-  }, [])
+    try {
+      setPortalStatus(await apiFetch<PortalStatusResponse>('/api/student/portal'))
+    } catch {
+      setPortalStatus(null)
+    }
+    await loadCompanion()
+    setLoading(false)
+  }, [loadCompanion])
 
   useEffect(() => { void loadImport() }, [loadImport])
+
+  const latestJob = companion?.jobs[0] ?? null
+  const latestDevice = companion?.devices[0] ?? null
+  const deviceIsOnline = Boolean(
+    latestDevice?.lastSeenAt && Date.now() - new Date(latestDevice.lastSeenAt).getTime() < 30_000,
+  )
+  const recentSyncSucceeded = Boolean(
+    latestJob?.type === 'SYNC' &&
+    latestJob.status === 'COMPLETED' &&
+    latestJob.completedAt &&
+    Date.now() - new Date(latestJob.completedAt).getTime() < 120_000,
+  )
+  const companionState = loading && !companion && !companionError
+    ? 'CHECKING'
+    : companionError
+      ? 'ERROR'
+      : latestJob?.status === 'QUEUED' || latestJob?.status === 'RUNNING'
+        ? 'SYNCING'
+        : latestJob?.status === 'FAILED'
+          ? 'ERROR'
+          : recentSyncSucceeded
+            ? 'SUCCESS'
+            : !latestDevice
+              ? 'NOT_INSTALLED'
+              : deviceIsOnline
+                ? 'CONNECTED'
+                : 'DISCONNECTED'
+  const companionStateLabel = {
+    CHECKING: 'Checking…',
+    NOT_INSTALLED: 'Not installed / not paired',
+    DISCONNECTED: 'Disconnected',
+    CONNECTED: 'Connected',
+    SYNCING: 'Syncing',
+    SUCCESS: 'Success',
+    ERROR: 'Error',
+  }[companionState]
+
+  useEffect(() => {
+    const hasPendingPairing = Boolean(pairCode)
+    const hasActiveJob = latestJob?.status === 'QUEUED' || latestJob?.status === 'RUNNING'
+    if (!hasPendingPairing && !hasActiveJob && !latestDevice) return
+    const interval = window.setInterval(() => { void loadCompanion() }, hasPendingPairing || hasActiveJob ? 2500 : 10_000)
+    return () => window.clearInterval(interval)
+  }, [latestDevice?.id, latestJob?.status, loadCompanion, pairCode])
 
   const summaries = useMemo(() => {
     const grouped = new Map<string, { subject: string; total: number; attended: number }>()
@@ -167,6 +229,13 @@ export function PortalSyncPanel() {
   async function connectPortal() {
     setBusy(true)
     try {
+      if (!portalStatus?.adapter.available) {
+        const result = await apiFetch<{ ok: boolean; code: string; expiresAt: string }>('/api/student/portal/companion', { method: 'POST' })
+        setPairCode({ code: result.code, expiresAt: result.expiresAt })
+        toast.success('Pairing code created. Run the local companion and enter this code.')
+        await loadImport()
+        return
+      }
       await apiFetch('/api/student/portal', { method: 'POST' })
       toast.info('Live sync is not configured. The CSV fallback remains available.')
       await loadImport()
@@ -180,6 +249,19 @@ export function PortalSyncPanel() {
   async function syncPortal() {
     setBusy(true)
     try {
+      if (!portalStatus?.adapter.available) {
+        if (!companion?.devices.length) {
+          toast.info('Pair the local companion before requesting attendance data.')
+          return
+        }
+        await apiFetch('/api/student/portal/companion/job', {
+          method: 'POST',
+          body: JSON.stringify({ type: 'SYNC' }),
+        })
+        toast.success('Sync job queued for the local companion.')
+        await loadImport()
+        return
+      }
       await apiFetch('/api/student/portal/sync', { method: 'POST' })
     } catch (error) {
       toast.info(error instanceof Error ? error.message : 'Live Scholars24 sync is unavailable.')
@@ -198,6 +280,62 @@ export function PortalSyncPanel() {
       await loadImport()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not disconnect Scholars24.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function openLocalLogin() {
+    if (!companion?.devices.length) {
+      toast.info('Pair the local companion first.')
+      return
+    }
+    setBusy(true)
+    try {
+      await apiFetch('/api/student/portal/companion/job', {
+        method: 'POST',
+        body: JSON.stringify({ type: 'OPEN_LOGIN' }),
+      })
+      toast.success('Browser login job sent to the local companion.')
+      await loadImport()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not start the local browser.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function clearLocalSession() {
+    if (!companion?.devices.length) {
+      toast.info('No local companion session is paired.')
+      return
+    }
+    if (!window.confirm('Clear the dedicated local Scholars24 browser profile on this device?')) return
+    setBusy(true)
+    try {
+      await apiFetch('/api/student/portal/companion/job', {
+        method: 'POST',
+        body: JSON.stringify({ type: 'CLEAR_SESSION' }),
+      })
+      toast.success('Local browser session clear requested.')
+      await loadImport()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not clear the local session.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function disconnectCompanion() {
+    if (!window.confirm('Disconnect this AttendX account from its local Scholars24 companion?')) return
+    setBusy(true)
+    try {
+      await apiFetch('/api/student/portal/companion/disconnect', { method: 'POST' })
+      setPairCode(null)
+      toast.success('Local companion disconnected.')
+      await loadImport()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not disconnect the companion.')
     } finally {
       setBusy(false)
     }
@@ -282,41 +420,117 @@ export function PortalSyncPanel() {
       <Card className="overflow-hidden border-primary/15 shadow-sm">
         <CardContent className="grid gap-5 p-5 md:grid-cols-[1fr_auto] md:items-center md:p-6">
           <div className="flex items-start gap-4">
-            <span className={`grid size-12 shrink-0 place-items-center rounded-2xl ${portalStatus?.adapter.available ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'}`}>
-              {portalStatus?.adapter.available ? <CheckCircle2 className="size-6" /> : <CircleAlert className="size-6" />}
+            <span className={`grid size-12 shrink-0 place-items-center rounded-2xl ${companionState === 'CONNECTED' || companionState === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-600' : companionState === 'ERROR' ? 'bg-destructive/10 text-destructive' : 'bg-amber-500/10 text-amber-600'}`}>
+              {companionState === 'CONNECTED' || companionState === 'SUCCESS' ? <CheckCircle2 className="size-6" /> : <CircleAlert className="size-6" />}
             </span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="font-semibold">
-                  {portalStatus?.connection.status === 'CSV_ACTIVE'
-                    ? 'CSV fallback active'
-                    : portalStatus?.connection.status === 'READY'
-                      ? 'Authorized API ready'
-                      : portalStatus?.connection.status === 'DISCONNECTED'
-                        ? 'Disconnected'
-                        : 'Live connection pending'}
-                </p>
-                <Badge variant={portalStatus?.adapter.available ? 'default' : 'secondary'} className="text-[11px]">
-                  {portalStatus?.adapter.available ? 'Configured' : 'Authorization required'}
+                <p className="font-semibold">Scholars24 local companion</p>
+                <Badge variant={companionState === 'CONNECTED' || companionState === 'SUCCESS' ? 'default' : companionState === 'ERROR' ? 'destructive' : 'secondary'} className="text-[11px]">
+                  {companionStateLabel}
                 </Badge>
               </div>
               <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">
-                {portalStatus?.adapter.message ?? 'Scholars24 live authorization is pending an approved student API or OAuth grant.'}
+                {companionError
+                  ? companionError
+                  : companionState === 'CHECKING'
+                    ? 'Checking your paired companion and recent sync activity.'
+                    : companionState === 'NOT_INSTALLED'
+                    ? 'No companion device is paired. AttendX cannot detect local installation until you complete pairing.'
+                    : companionState === 'DISCONNECTED'
+                      ? 'The paired companion has not checked in recently. Start it locally to reconnect.'
+                      : companionState === 'SYNCING'
+                        ? 'A request is queued or running on your local companion.'
+                        : companionState === 'ERROR'
+                          ? latestJob?.errorMessage ?? 'The companion request failed. Check that the local companion is running, then retry.'
+                          : companionState === 'SUCCESS'
+                            ? 'The latest attendance sync completed successfully.'
+                            : 'Your local companion is checking in with AttendX.'}
+                {!portalStatus?.adapter.available && !companionError ? ` ${portalStatus?.adapter.message ?? 'The official Scholars24 API is not configured; local browser sync is the available connection path.'}` : ''}
               </p>
+              {portalStatus?.connection.lastSuccessfulSyncAt && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Last successful sync {new Date(portalStatus.connection.lastSuccessfulSyncAt).toLocaleString()}
+                </p>
+              )}
+              {latestJob?.type === 'SYNC' && latestJob.status === 'COMPLETED' && latestJob.result && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {latestJob.result.imported ?? 0} records imported · {latestJob.result.duplicates ?? 0} duplicates skipped · {latestJob.result.skipped ?? 0} invalid rows ignored
+                </p>
+              )}
             </div>
           </div>
           <div className="flex flex-wrap gap-2 md:justify-end">
-            <Button variant="outline" onClick={connectPortal} disabled={busy || loading || !portalStatus?.adapter.available}><Cable className="mr-2 size-4" />Connect</Button>
-            <Button onClick={syncPortal} disabled={busy || loading || !portalStatus?.adapter.available}>
+            {portalStatus?.adapter.available ? (
+              <Button variant="outline" onClick={connectPortal} disabled={busy || loading}><Cable className="mr-2 size-4" />Connect Scholars24</Button>
+            ) : (
+              <Button variant="outline" onClick={connectPortal} disabled={busy || loading}><Cable className="mr-2 size-4" />{companion?.devices.length ? 'Pair Another Device' : 'Pair / Connect'}</Button>
+            )}
+            {!portalStatus?.adapter.available && (
+              <Button variant="outline" onClick={openLocalLogin} disabled={busy || loading || !companion?.devices.length}>
+                <Cable className="mr-2 size-4" />Launch Browser
+              </Button>
+            )}
+            <Button onClick={syncPortal} disabled={busy || loading || (!portalStatus?.adapter.available && (!companion?.devices.length || companionState === 'SYNCING'))}>
               {busy ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}
-              {busy ? 'Checking…' : 'Sync now'}
+              {busy ? 'Requesting…' : 'Sync Attendance'}
             </Button>
-            {portalStatus?.connection.status !== 'NOT_CONFIGURED' && (
+            {!portalStatus?.adapter.available && companion?.devices.length ? (
+              <>
+                <Button variant="ghost" onClick={clearLocalSession} disabled={busy}>Clear Local Session</Button>
+                <Button variant="ghost" onClick={disconnectCompanion} disabled={busy}><Unplug className="mr-2 size-4" />Disconnect Device</Button>
+              </>
+            ) : null}
+            {(portalStatus?.connection.status === 'READY' || portalStatus?.connection.status === 'DISCONNECTED') && (
               <Button variant="ghost" onClick={disconnectPortal} disabled={busy}><Unplug className="mr-2 size-4" />Disconnect</Button>
             )}
           </div>
         </CardContent>
       </Card>
+
+      {!portalStatus?.adapter.available && (
+        <Card className="border-primary/15">
+          <CardHeader className="border-b bg-muted/20">
+            <CardTitle className="text-base">Local Companion Setup</CardTitle>
+            <CardDescription>Install and run the Windows companion on the same computer that should open the Scholars24 browser.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 p-5">
+            {pairCode && (
+              <div className="flex flex-col gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Pairing code</p>
+                  <p className="mt-1 text-3xl font-semibold tracking-[0.18em] tabular-nums">{pairCode.code}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Expires {new Date(pairCode.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                </div>
+                <p className="max-w-sm text-sm text-muted-foreground">Run <code className="rounded bg-background px-1.5 py-0.5 text-xs">npm run companion:pair</code>, enter this code, then run <code className="rounded bg-background px-1.5 py-0.5 text-xs">npm run companion:start</code>.</p>
+              </div>
+            )}
+            {!pairCode && !companion?.devices.length && (
+              <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                On Windows, clone the AttendX project and run <code className="rounded bg-muted px-1.5 py-0.5 text-xs">npm install</code>, <code className="rounded bg-muted px-1.5 py-0.5 text-xs">npm run companion:install-browser</code>, then use <strong>Pair / Connect</strong> above to generate a one-time code.
+              </div>
+            )}
+            {companion?.devices.map((device) => (
+              <div key={device.id} className="flex flex-col gap-2 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-medium">{device.name}</p>
+                  <p className="text-xs text-muted-foreground">Paired {new Date(device.pairedAt).toLocaleString()}</p>
+                </div>
+                <div className="text-left sm:text-right">
+                  <Badge variant={device.status === 'CONNECTED' ? 'default' : 'secondary'}>{device.status}</Badge>
+                  <p className="mt-1 text-xs text-muted-foreground">{device.lastSeenAt ? `Last seen ${new Date(device.lastSeenAt).toLocaleString()}` : 'Never contacted AttendX'}</p>
+                </div>
+              </div>
+            ))}
+            {latestJob?.status === 'FAILED' && (
+              <div role="status" className="rounded-xl border border-destructive/25 bg-destructive/5 p-4 text-sm text-destructive">
+                {latestJob.errorMessage ?? 'The latest companion request failed.'}
+                {latestJob.errorCode === 'LOGIN_REQUIRED' ? ' Open the local browser and sign in directly on Scholars24, then retry the sync.' : ''}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="border-b bg-muted/20">

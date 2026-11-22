@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import { db } from './db'
 import { AuthError } from './auth'
 import { rateLimit, RULES } from './rate-limit'
-import { maskEmail, sendEmail, otpEmailHtml } from './email'
+import { getCanonicalAppUrl, maskEmail, sendEmail, otpEmailHtml } from './email'
 import { safeEqual } from './security'
 
 // ───────────────────────────────────────────────────────────
@@ -136,7 +136,7 @@ export async function sendOtp(opts: {
   // Send the email. Fail closed: if mail is not configured, do not leave a
   // dangling record that would let the user "guess" — delete it and error.
   try {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://attendx.app'
+    const appUrl = getCanonicalAppUrl()
     await sendEmail({
       to: email,
       subject: PURPOSES[opts.purpose].emailSubject,

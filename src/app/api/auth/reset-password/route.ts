@@ -7,12 +7,14 @@ import {
   errorResponse,
   AuthError,
   assertCsrf,
+  destroySession,
   handleRouteError,
 } from '@/lib/auth'
 import { validatePasswordPolicy } from '@/lib/security'
 import { getClientIp } from '@/lib/authz'
 import { rateLimit, RULES } from '@/lib/rate-limit'
 import { consumeVerificationTicket } from '@/lib/otp'
+import { sendPasswordChangedNotification } from '@/lib/email'
 
 export const runtime = 'nodejs'
 
@@ -28,9 +30,15 @@ export async function POST(req: NextRequest) {
       ticket?: string
     }>(req)
 
-    if (!newPassword || !confirm || !ticket) {
+    if (
+      typeof newPassword !== 'string' ||
+      typeof confirm !== 'string' ||
+      typeof ticket !== 'string' ||
+      typeof email !== 'string'
+    ) {
       return errorResponse('New password, confirmation, and verification ticket are required', 400)
     }
+    if (newPassword.length > 128) return errorResponse('Password must be at most 128 characters long', 400)
 
     if (newPassword !== confirm) {
       return errorResponse('Passwords do not match', 400)
@@ -57,10 +65,30 @@ export async function POST(req: NextRequest) {
       return errorResponse('Invalid credentials', 401)
     }
 
-    await db.user.update({
-      where: { id: user.id },
-      data: { passwordHash: hashPassword(newPassword) },
+    const now = new Date()
+    await db.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash: hashPassword(newPassword),
+          securityVersion: { increment: 1 },
+          passwordChangedAt: now,
+        },
+      })
+      await tx.passwordResetToken.updateMany({
+        where: { userId: user.id, usedAt: null },
+        data: { usedAt: now },
+      })
     })
+
+    await destroySession()
+    try {
+      await sendPasswordChangedNotification(user.email)
+    } catch (error) {
+      console.error('[auth/reset-password] password-change notification delivery failed', {
+        errorType: error instanceof Error ? error.name : 'unknown',
+      })
+    }
 
     return json({ ok: true })
   } catch (e) {

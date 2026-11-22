@@ -13,6 +13,7 @@ import {
 } from '@/lib/auth'
 import { rateLimit, RULES } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/authz'
+import { logAudit } from '@/lib/audit'
 
 export const runtime = 'nodejs'
 
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
     const { email, password, role } = await parseBody<{
       email?: string
       password?: string
-      role?: 'ADMIN' | 'TEACHER' | 'STUDENT'
+      role?: 'SUPER_ADMIN' | 'ADMIN' | 'TEACHER' | 'STUDENT'
     }>(req)
 
     if (!email || !password || !role) {
@@ -51,6 +52,13 @@ export async function POST(req: NextRequest) {
     // whether the role matches, the account is disabled, or the profile is
     // incomplete. User enumeration is a state leak.
     if (!user) {
+      await logAudit({
+        action: 'auth.login.failed',
+        actorRole: role,
+        targetType: 'User',
+        details: { reason: 'account_not_found' },
+        ip,
+      })
       return errorResponse(
         'No account found for this email. Verify your email to create your account.',
         401,
@@ -64,11 +72,34 @@ export async function POST(req: NextRequest) {
       !user.passwordHash ||
       !verifyPassword(password, user.passwordHash) ||
       (role === 'ADMIN' && !user.admin) ||
+      (role === 'SUPER_ADMIN' && user.role !== 'SUPER_ADMIN') ||
       (role === 'TEACHER' && !user.teacher) ||
       (role === 'STUDENT' && !user.student)
     ) {
+      await logAudit({
+        action: 'auth.login.failed',
+        actorId: user.id,
+        actorRole: user.role,
+        targetType: 'User',
+        targetId: user.id,
+        details: { reason: 'invalid_credentials_or_role' },
+        ip,
+      })
       return errorResponse('Invalid credentials', 401)
     }
+
+    await db.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    })
+    await logAudit({
+      action: 'auth.login.success',
+      actorId: user.id,
+      actorRole: user.role,
+      targetType: 'User',
+      targetId: user.id,
+      ip,
+    })
 
     // regenerate session id on login (cookie rotation handled by createCollegeSession)
     await createCollegeSession({ id: user.id, email: user.email, role: user.role })

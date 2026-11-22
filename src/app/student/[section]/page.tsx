@@ -7,6 +7,7 @@ const STUDENT_SECTIONS = [
   'weekly',
   'monthly',
   'portal-sync',
+  'security',
 ] as const
 
 type StudentSection = (typeof STUDENT_SECTIONS)[number]

@@ -17,6 +17,19 @@ export class ApiError extends Error {
   }
 }
 
+async function getCsrfToken(): Promise<string> {
+  const cached = useAuth.getState().csrfToken
+  if (cached) return cached
+
+  const response = await fetch('/api/auth/csrf', { cache: 'no-store' })
+  const data = await response.json().catch(() => ({})) as { token?: unknown }
+  if (!response.ok || typeof data.token !== 'string' || !data.token) {
+    throw new ApiError('Could not establish a secure request. Refresh the page and try again.', undefined, response.status)
+  }
+  useAuth.getState().setCsrf(data.token)
+  return data.token
+}
+
 export async function apiFetch<T = unknown>(
   url: string,
   options: RequestInit = {}
@@ -33,8 +46,7 @@ export async function apiFetch<T = unknown>(
   }
 
   if (isMutation) {
-    const csrf = useAuth.getState().csrfToken
-    if (csrf) headers['x-csrf-token'] = csrf
+    headers['x-csrf-token'] = await getCsrfToken()
   }
 
   const res = await fetch(url, { ...options, headers, cache: 'no-store' })
