@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import {
   assertCsrf,
+  AuthError,
   errorResponse,
   handleRouteError,
   json,
@@ -79,9 +80,12 @@ export async function POST(req: NextRequest) {
     const inputCount = body.records.length
 
     const seen = new Set<string>()
+    const statusesBySubjectDate = new Map<string, ImportedStatus>()
     const rows: ImportedRow[] = []
     for (const item of body.records) {
-      const subject = typeof item?.subject === 'string' ? item.subject.trim() : ''
+      const subject = typeof item?.subject === 'string'
+        ? item.subject.trim()
+        : ''
       const date = typeof item?.date === 'string' ? item.date : ''
       const status = item?.status
       const source = typeof item?.source === 'string' ? item.source.trim().slice(0, 120) : 'CSV'
@@ -89,6 +93,16 @@ export async function POST(req: NextRequest) {
         !['PRESENT', 'ABSENT', 'LATE'].includes(status)) {
         return errorResponse('Import contains an invalid subject, date, or attendance status.', 400)
       }
+      const subjectDateKey = `${subject.toLocaleLowerCase().replace(/\s+/g, ' ')}|${date}`
+      const existingStatus = statusesBySubjectDate.get(subjectDateKey)
+      if (existingStatus && existingStatus !== status) {
+        throw new AuthError(
+          `Conflicting attendance statuses for ${subject} on ${date}. Keep one status per subject and date.`,
+          409,
+        )
+      }
+      if (existingStatus === status) continue
+      statusesBySubjectDate.set(subjectDateKey, status)
       const key = subject.toLocaleLowerCase() + '|' + date + '|' + status
       if (seen.has(key)) continue
       seen.add(key)
@@ -130,7 +144,7 @@ export async function POST(req: NextRequest) {
       await tx.portalImportedAttendance.createMany({
         data: rows.map((row) => ({
           studentId: session.studentId!,
-          externalKey: `csv:${row.date}:${row.subject.toLocaleLowerCase()}:${row.status}`,
+          externalKey: `csv:${row.date}:${row.subject.toLocaleLowerCase()}`,
           provider: 'SCHOLARS24',
           subjectName: row.subject,
           attendanceDate: row.date,
@@ -177,7 +191,27 @@ export async function DELETE(req: NextRequest) {
       identifier: `portal-delete:${session.studentId}`,
       rule: RULES.portal,
     })
-    await db.portalImport.deleteMany({ where: { studentId: session.studentId } })
+    await db.$transaction([
+      db.portalImport.deleteMany({ where: { studentId: session.studentId } }),
+      db.portalImportedAttendance.deleteMany({ where: { studentId: session.studentId } }),
+      db.portalImportedSubject.deleteMany({ where: { studentId: session.studentId } }),
+      db.portalImportedLecture.deleteMany({ where: { studentId: session.studentId } }),
+      db.portalImportedTimetable.deleteMany({ where: { studentId: session.studentId } }),
+      db.portalConnection.updateMany({
+        where: { studentId: session.studentId },
+        data: {
+          status: 'DATA_CLEARED',
+          lastSuccessfulSyncAt: null,
+          externalStudentId: null,
+          externalProfileName: null,
+          externalCourse: null,
+          externalSemester: null,
+          externalAcademicYear: null,
+          errorCode: null,
+          errorMessage: null,
+        },
+      }),
+    ])
     return json({ ok: true })
   } catch (error) {
     return handleRouteError(error, 'student/portal-import:delete')

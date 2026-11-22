@@ -57,7 +57,7 @@ type PortalStatusResponse = {
 export function PortalSyncPanel() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [records, setRecords] = useState<StoredImport[]>([])
-  const [pending, setPending] = useState<{ records: ImportedRecord[]; skipped: number; duplicates: number; fileName: string } | null>(null)
+  const [pending, setPending] = useState<{ records: ImportedRecord[]; skipped: number; duplicates: number; conflicts: number; fileName: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
@@ -120,6 +120,10 @@ export function PortalSyncPanel() {
 
   async function saveImport() {
     if (!pending) return
+    if (pending.conflicts > 0) {
+      toast.error('Conflicting attendance statuses found. Resolve them in the CSV before saving.')
+      return
+    }
     setBusy(true)
     try {
       const result = await apiFetch<{ imported: number; updatedAt: string }>('/api/student/portal-import', {
@@ -345,6 +349,11 @@ export function PortalSyncPanel() {
               <div>
                 <p className="font-medium">Review before saving · {pending.fileName}</p>
                 <p className="text-sm text-muted-foreground">{pending.records.length} valid rows · {pending.skipped} invalid rows · {pending.duplicates} duplicates ignored</p>
+                {pending.conflicts > 0 && (
+                  <p className="text-sm font-medium text-destructive">
+                    {pending.conflicts} conflicting status {pending.conflicts === 1 ? 'row found' : 'rows found'}. This import cannot be saved until the CSV has one status per subject and date.
+                  </p>
+                )}
               </div>
               <div className="max-h-44 overflow-auto rounded-lg border bg-background">
                 {pending.records.slice(0, 8).map((record) => (
@@ -355,7 +364,7 @@ export function PortalSyncPanel() {
                 ))}
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button onClick={saveImport} disabled={busy}>Save to my AttendX account</Button>
+                <Button onClick={saveImport} disabled={busy || pending.conflicts > 0}>Save to my AttendX account</Button>
                 <Button variant="outline" onClick={() => setPending(null)} disabled={busy}>Cancel</Button>
               </div>
               <p className="text-xs text-muted-foreground">Saving replaces only your previous external portal import. Teacher-marked AttendX attendance is never modified.</p>
