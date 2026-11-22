@@ -14,7 +14,7 @@ import { apiFetch } from '@/lib/api'
 import { usePolling } from '@/hooks/use-polling'
 import { toast } from 'sonner'
 import { useAuth } from '@/stores/auth-store'
-import { PortalImportPanel } from './portal-import-panel'
+import { PortalSyncPanel } from './portal-sync-panel'
 import {
   Card,
   CardContent,
@@ -1023,7 +1023,7 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
         )}
         {active === 'portal-sync' && (
         <section id="section-portal-sync">
-          <PortalImportPanel storageKey={user?.email || 'student'} />
+          <PortalSyncPanel />
         </section>
         )}
       </div>
