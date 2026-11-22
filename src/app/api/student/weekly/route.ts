@@ -1,34 +1,21 @@
 // AttendX — Student weekly attendance API
-// GET /api/student/weekly → [{ day: 'Mon', total, attended, pct }] for the current week (Mon..Sun).
-// total = timetable periods for that day-of-week in the student's section.
-// attended = number of attendance records (present+late) on that date.
+// Returns only attendance that has actually been marked for the signed-in student.
+// Each day reports attended (present + late), missed (absent), and total marked classes.
 import { db } from '@/lib/db'
-import { requireRole, json, errorResponse, AuthError,
-  handleRouteError,
-} from '@/lib/auth'
+import { requireRole, json, errorResponse, AuthError, handleRouteError } from '@/lib/auth'
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
 
-function pct(attended: number, total: number): number {
-  if (total <= 0) return 0
-  return Math.round((attended / total) * 100)
-}
-
-/** Return Monday of the week containing the given date (local-time aware). */
 function mondayOfWeek(date: Date): Date {
   const d = new Date(date)
   d.setHours(0, 0, 0, 0)
-  const day = d.getDay() // 0=Sun..6=Sat
-  const diff = day === 0 ? -6 : 1 - day
-  d.setDate(d.getDate() + diff)
+  const day = d.getDay()
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day))
   return d
 }
 
 function fmt(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${dd}`
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 export async function GET() {
@@ -37,64 +24,46 @@ export async function GET() {
     const studentId = session.studentId
     if (!studentId) return errorResponse('Student profile missing', 403)
 
-    const student = await db.student.findUnique({
-      where: { id: studentId },
-      select: { sectionId: true },
-    })
-    if (!student) return errorResponse('Student not found', 404)
-
-    // Build the 7 dates for the current week (Mon..Sun)
     const monday = mondayOfWeek(new Date())
-    const weekDates: { day: string; dateStr: string }[] = DAYS.map((day, i) => {
-      const d = new Date(monday)
-      d.setDate(monday.getDate() + i)
-      return { day, dateStr: fmt(d) }
+    const dates = DAYS.map((day, index) => {
+      const date = new Date(monday)
+      date.setDate(monday.getDate() + index)
+      return { day, date: fmt(date) }
     })
 
-    // Fetch timetable per-day period counts for this section
-    let slotCounts: Record<string, number> = {}
-    if (student.sectionId) {
-      const slots = await db.timetable.findMany({
-        where: { sectionId: student.sectionId },
-        select: { day: true, period: true },
-      })
-      slotCounts = slots.reduce<Record<string, number>>((acc, s) => {
-        acc[s.day] = (acc[s.day] ?? 0) + 1
-        return acc
-      }, {})
-    }
-
-    // Fetch all attendance for this student in the current week's date range
-    const startDate = weekDates[0].dateStr
-    const endDate = weekDates[6].dateStr
     const records = await db.attendance.findMany({
       where: {
         studentId,
-        date: { gte: startDate, lte: endDate },
+        date: { gte: dates[0].date, lte: dates[6].date },
       },
       select: { date: true, status: true },
     })
 
-    // Bucket attendance by date
-    const byDate = new Map<string, { attended: number; total: number }>()
-    for (const r of records) {
-      const e = byDate.get(r.date) ?? { attended: 0, total: 0 }
-      e.total += 1
-      if (r.status === 'present' || r.status === 'late') e.attended += 1
-      byDate.set(r.date, e)
+    const buckets = new Map<string, { attended: number; total: number }>()
+    for (const record of records) {
+      const bucket = buckets.get(record.date) ?? { attended: 0, total: 0 }
+      bucket.total += 1
+      if (record.status === 'present' || record.status === 'late') bucket.attended += 1
+      buckets.set(record.date, bucket)
     }
 
-    const result = weekDates.map(({ day, dateStr }) => {
-      const total = slotCounts[day] ?? 0
-      const rec = byDate.get(dateStr)
-      const attended = rec?.attended ?? 0
-      return { day, date: dateStr, total, attended, pct: pct(attended, total) }
+    const week = dates.map(({ day, date }) => {
+      const bucket = buckets.get(date) ?? { attended: 0, total: 0 }
+      const missed = bucket.total - bucket.attended
+      return {
+        day,
+        date,
+        attended: bucket.attended,
+        missed,
+        total: bucket.total,
+        pct: bucket.total ? Math.round((bucket.attended / bucket.total) * 100) : 0,
+      }
     })
 
-    return json({ week: result })
-  } catch (e) {
-    if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    console.error('[student/weekly] error:', e)
-    return handleRouteError(e, 'student/weekly')
+    return json({ week })
+  } catch (error) {
+    if (error instanceof AuthError) return errorResponse(error.message, error.status)
+    console.error('[student/weekly] error:', error)
+    return handleRouteError(error, 'student/weekly')
   }
 }
