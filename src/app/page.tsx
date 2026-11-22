@@ -22,6 +22,17 @@ function HomeContent() {
   }, [refresh])
 
   useEffect(() => {
+    const requestedRole = searchParams.get('open')
+    if (!user && requestedRole) {
+      const roles = { student: 'STUDENT', teacher: 'TEACHER', personal: 'PERSONAL' } as const
+      if (requestedRole in roles) {
+        openLogin(roles[requestedRole as keyof typeof roles])
+        router.replace('/')
+      }
+    }
+  }, [searchParams, openLogin, router, user])
+
+  useEffect(() => {
     if (searchParams.get('student_setup') === '1') {
       refresh().then(() => openLogin('STUDENT', { profileSetup: true }))
       router.replace('/')
