@@ -52,6 +52,7 @@ function HomeContent() {
         account_disabled: 'This account has been disabled.',
         invalid_state: 'Your sign-in session expired. Please try again.',
         missing_code: 'Google did not return a sign-in code. Please try again.',
+        redirect_uri_mismatch: 'Google sign-in is not configured for this deployment. Please contact the administrator.',
         oauth_unavailable: 'Google sign-in is temporarily unavailable. Please try again later.',
         oauth_failed: 'Google authentication failed. Please try again.',
         role_conflict: 'This email is already registered with a different account type.',

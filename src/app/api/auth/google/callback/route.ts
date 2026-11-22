@@ -9,9 +9,12 @@ import {
 } from '@/lib/auth'
 import {
   exchangeGoogleCode,
+  getOAuthEnvironment,
   getGoogleOAuthConfig,
+  logGoogleOAuthDiagnostic,
   OAuthConfigurationError,
-  verifyOAuthState,
+  type OAuthDiagnosticCategory,
+  validateGoogleOAuthCallback,
   OAUTH_STATE_COOKIE,
 } from '@/lib/oauth'
 
@@ -155,35 +158,31 @@ export async function GET(req: NextRequest) {
   try {
     const config = getGoogleOAuthConfig(req)
     const appUrl = config.appUrl
+    logGoogleOAuthDiagnostic('callback_received', config.callbackUrl)
     const code = req.nextUrl.searchParams.get('code')
     const state = req.nextUrl.searchParams.get('state')
     const oauthError = req.nextUrl.searchParams.get('error')
 
-    if (oauthError) {
-      return Response.redirect(`${appUrl}/?auth_error=${encodeURIComponent(oauthError)}`)
-    }
-
-    if (!code || !state) {
-      return Response.redirect(`${appUrl}/?auth_error=missing_code`)
-    }
-
     const store = await cookies()
     const cookieState = store.get(OAUTH_STATE_COOKIE)?.value
     store.delete(OAUTH_STATE_COOKIE)
-
-    if (!cookieState || cookieState !== state) {
-      return Response.redirect(`${appUrl}/?auth_error=invalid_state`)
-    }
-
-    const parsed = verifyOAuthState(state)
-    if (!parsed || (parsed.role !== 'STUDENT' && parsed.role !== 'TEACHER')) {
-      return Response.redirect(`${appUrl}/?auth_error=invalid_state`)
+    const validation = validateGoogleOAuthCallback({
+      code,
+      state,
+      cookieState,
+      providerError: oauthError,
+    })
+    if (!validation.ok) {
+      logGoogleOAuthDiagnostic('callback_validation', config.callbackUrl, validation.error)
+      return Response.redirect(`${appUrl}/?auth_error=${validation.error}`)
     }
 
     try {
-      const profile = await exchangeGoogleCode(code, config)
+      logGoogleOAuthDiagnostic('token_exchange', config.callbackUrl)
+      const profile = await exchangeGoogleCode(validation.code, config)
+      logGoogleOAuthDiagnostic('profile_verified', config.callbackUrl)
 
-      if (parsed.role === 'TEACHER') {
+      if (validation.role === 'TEACHER') {
         const user = await upsertGoogleTeacher(profile)
         await createCollegeSession({
           id: user.id,
@@ -229,17 +228,29 @@ export async function GET(req: NextRequest) {
       if (msg === 'ACCOUNT_CONFLICT') {
         return Response.redirect(`${appUrl}/?auth_error=account_conflict`)
       }
-      console.error('[auth/google/callback] failed', {
-        code: msg === 'GOOGLE_TOKEN_EXCHANGE_FAILED' || msg === 'GOOGLE_PROFILE_VERIFICATION_FAILED'
-          ? msg
-          : 'OAUTH_CALLBACK_FAILED',
-      })
+      const knownCategories = new Set([
+        'GOOGLE_CLIENT_CONFIGURATION_REJECTED',
+        'GOOGLE_AUTHORIZATION_CODE_REJECTED',
+        'GOOGLE_TOKEN_EXCHANGE_FAILED',
+        'GOOGLE_PROFILE_VERIFICATION_FAILED',
+      ])
+      logGoogleOAuthDiagnostic(
+        'callback_processing',
+        config.callbackUrl,
+        knownCategories.has(msg)
+          ? msg as OAuthDiagnosticCategory
+          : 'OAUTH_CALLBACK_FAILED'
+      )
       return Response.redirect(`${appUrl}/?auth_error=oauth_failed`)
     }
 
   } catch (e) {
     if (e instanceof OAuthConfigurationError) {
-      console.error('[auth/google/callback] configuration error', { code: e.code })
+      console.error('[auth/google/callback] configuration error', {
+        stage: 'callback_configuration',
+        environment: getOAuthEnvironment(),
+        category: e.code,
+      })
       return Response.redirect(`${new URL(req.url).origin}/?auth_error=oauth_unavailable`)
     }
     return handleRouteError(e, 'auth/google/callback')
