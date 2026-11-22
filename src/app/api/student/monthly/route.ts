@@ -1,19 +1,7 @@
-// AttendX — Student calendar-month attendance API
-// GET /api/student/monthly → calendar-week buckets within the current calendar month.
+// AttendX — Student monthly attendance API
+// Returns six calendar months, separate from the current Monday–Sunday weekly report.
 import { db } from '@/lib/db'
 import { requireRole, json, errorResponse, AuthError, handleRouteError } from '@/lib/auth'
-
-function pct(attended: number, total: number): number {
-  return total > 0 ? Math.round((attended / total) * 100) : 0
-}
-
-function mondayOfWeek(date: Date): Date {
-  const d = new Date(date)
-  d.setHours(0, 0, 0, 0)
-  const offset = d.getDay() === 0 ? -6 : 1 - d.getDay()
-  d.setDate(d.getDate() + offset)
-  return d
-}
 
 function fmt(d: Date): string {
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
@@ -26,41 +14,28 @@ export async function GET() {
     if (!studentId) return errorResponse('Student profile missing', 403)
 
     const now = new Date()
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-    monthStart.setHours(0, 0, 0, 0)
-    monthEnd.setHours(0, 0, 0, 0)
-
+    const firstMonth = new Date(now.getFullYear(), now.getMonth() - 5, 1)
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
     const records = await db.attendance.findMany({
-      where: { studentId, date: { gte: fmt(monthStart), lte: fmt(monthEnd) } },
+      where: { studentId, date: { gte: fmt(firstMonth), lte: fmt(lastDay) } },
       select: { date: true, status: true },
     })
 
-    const weeks: { week: string; start: string; end: string; attended: number; total: number }[] = []
-    let cursor = mondayOfWeek(monthStart)
-    let index = 1
-    while (cursor <= monthEnd) {
-      const weekEnd = new Date(cursor)
-      weekEnd.setDate(weekEnd.getDate() + 6)
-      const clippedStart = cursor < monthStart ? monthStart : cursor
-      const clippedEnd = weekEnd > monthEnd ? monthEnd : weekEnd
-      weeks.push({ week: 'Week ' + index, start: fmt(clippedStart), end: fmt(clippedEnd), attended: 0, total: 0 })
-      cursor = new Date(cursor)
-      cursor.setDate(cursor.getDate() + 7)
-      index += 1
+    const months: { month: string; start: string; end: string; attended: number; total: number; pct: number }[] = []
+    for (let offset = 0; offset < 6; offset += 1) {
+      const start = new Date(firstMonth.getFullYear(), firstMonth.getMonth() + offset, 1)
+      const end = new Date(start.getFullYear(), start.getMonth() + 1, 0)
+      const bucket = records.filter((record) => record.date >= fmt(start) && record.date <= fmt(end))
+      const total = bucket.length
+      const attended = bucket.filter((record) => record.status === 'present' || record.status === 'late').length
+      const month = start.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
+      months.push({ month, start: fmt(start), end: fmt(end), attended, total, pct: total ? Math.round((attended / total) * 100) : 0 })
     }
 
-    for (const record of records) {
-      const bucket = weeks.find((week) => record.date >= week.start && record.date <= week.end)
-      if (!bucket) continue
-      bucket.total += 1
-      if (record.status === 'present' || record.status === 'late') bucket.attended += 1
-    }
-
-    return json({ weeks: weeks.map((week) => ({ ...week, pct: pct(week.attended, week.total) })) })
-  } catch (e) {
-    if (e instanceof AuthError) return errorResponse(e.message, e.status)
-    console.error('[student/monthly] error:', e)
-    return handleRouteError(e, 'student/monthly')
+    return json({ months })
+  } catch (error) {
+    if (error instanceof AuthError) return errorResponse(error.message, error.status)
+    console.error('[student/monthly] error:', error)
+    return handleRouteError(error, 'student/monthly')
   }
 }
