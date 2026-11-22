@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
       return tx.portalImport.create({
         data: {
           studentId: session.studentId!,
-          source: (body.source || 'CSV').trim().slice(0, 40) || 'CSV',
+          source: (typeof body.source === 'string' ? body.source.trim().slice(0, 40) : '') || 'CSV',
           records: { create: rows },
         },
         include: { _count: { select: { records: true } } },
