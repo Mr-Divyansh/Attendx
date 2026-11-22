@@ -4,9 +4,11 @@ import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteErro
 
 export const runtime = 'nodejs'
 
+type ClassroomRouteContext = { params: Promise<{ id: string }> }
+
 function sessionPeriod(startTime: string) { return Number(startTime.slice(0, 2)) * 60 + Number(startTime.slice(3, 5)) }
 
-export async function GET(req: NextRequest, context: RouteContext<'/api/classrooms/[id]/attendance'>) {
+export async function GET(req: NextRequest, context: ClassroomRouteContext) {
   try {
     const session = await requireRole('TEACHER')
     const { id } = await context.params
@@ -21,7 +23,7 @@ export async function GET(req: NextRequest, context: RouteContext<'/api/classroo
   } catch (e) { return handleRouteError(e, 'classrooms/attendance') }
 }
 
-export async function POST(req: NextRequest, context: RouteContext<'/api/classrooms/[id]/attendance'>) {
+export async function POST(req: NextRequest, context: ClassroomRouteContext) {
   try {
     const session = await requireRole('TEACHER')
     await assertCsrf(req)
