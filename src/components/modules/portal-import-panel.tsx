@@ -299,7 +299,7 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
         </div>
         <Button variant="outline" asChild>
           <a href={PORTAL_ATTENDANCE_URL} target="_blank" rel="noreferrer">
-            Open Scholars24 <ArrowUpRight className="ml-2 size-4" />
+            Login to Scholars24 <ArrowUpRight className="ml-2 size-4" />
           </a>
         </Button>
       </div>
@@ -314,7 +314,7 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
               <Badge variant="outline" className="text-muted-foreground">CSV · max 3 MB</Badge>
             </div>
             <CardDescription>
-              Export or download your own attendance report from the college portal, then upload that CSV here.
+              Step 1: Sign in on the official Scholars24 portal. Step 2: download your attendance report and import its CSV here.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -369,7 +369,7 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
             )}
             <div className="mt-4 flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
               <LockKeyhole className="mt-0.5 size-4 shrink-0" />
-              <p>Your CSV is processed in this browser. It is not uploaded to AttendX servers and is saved only in this browser on this device.</p>
+              <p>Scholars24 login opens on its official website in a new tab. Enter your login details only there. AttendX does not receive them. Your CSV is processed in this browser and saved only on this device.</p>
             </div>
           </CardContent>
         </Card>
