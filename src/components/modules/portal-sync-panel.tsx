@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUpRight, CheckCircle2, CloudUpload, Download, FileSpreadsheet, RefreshCw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
@@ -30,7 +30,7 @@ export function PortalSyncPanel() {
   const [busy, setBusy] = useState(false)
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
 
-  async function loadImport() {
+  const loadImport = useCallback(async () => {
     setLoading(true)
     try {
       const result = await apiFetch<ImportResponse>('/api/student/portal-import')
@@ -41,9 +41,9 @@ export function PortalSyncPanel() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  useEffect(() => { void loadImport() }, [])
+  useEffect(() => { void loadImport() }, [loadImport])
 
   const summaries = useMemo(() => {
     const grouped = new Map<string, { subject: string; total: number; attended: number }>()
@@ -142,7 +142,7 @@ export function PortalSyncPanel() {
           </div>
           <h2 className="text-xl font-semibold tracking-tight">Scholars24 attendance sync</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Connect to your official portal and keep an independent copy of your attendance in AttendX.
+            Keep an independent, account-backed copy of your external attendance in AttendX.
           </p>
         </div>
         <Button variant="outline" asChild>
