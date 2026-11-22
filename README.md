@@ -141,6 +141,19 @@ npx tsc --noEmit
 npm run build
 ```
 
+## Scholars24 local companion
+
+AttendX uses an optional local Playwright companion for user-approved browser automation. It does not receive or store Scholars24 passwords, OTPs, cookies or bearer tokens.
+
+```powershell
+npm run companion:install-browser
+npm run companion:pair
+npm run companion:start
+npm run companion:clear
+```
+
+The companion stores its dedicated browser profile outside the repository at `%USERPROFILE%\.attendx\scholars24-browser-profile`. Full setup and limitation details are in [the companion guide](tools/scholars24-companion/README.md).
+
 ## Security notes
 
 - **Session Secret:** Generate a unique `ATTENDX_SECRET` with `openssl rand -hex 32`. Minimum 32 characters required.

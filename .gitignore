@@ -31,3 +31,6 @@ prisma/dev.db*
 
 # Google OAuth client secret files (NEVER commit)
 client_secret_*.json
+
+# Local Scholars24 companion state (browser profile, pairing/device secret)
+.attendx/

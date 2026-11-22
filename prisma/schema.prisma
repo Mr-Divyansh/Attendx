@@ -113,15 +113,18 @@ model Student {
   profileComplete Boolean   @default(false)
   createdAt       DateTime  @default(now())
 
-  attendance           Attendance[]
-  classroomMemberships ClassroomMember[]
-  portalConnection     PortalConnection?
-  portalSubjects       PortalImportedSubject[]
-  portalAttendance     PortalImportedAttendance[]
-  portalLectures       PortalImportedLecture[]
-  portalTimetables     PortalImportedTimetable[]
-  portalSyncHistory    PortalSyncHistory[]
-  portalImports        PortalImport[]
+  attendance              Attendance[]
+  classroomMemberships    ClassroomMember[]
+  portalConnection        PortalConnection?
+  portalSubjects          PortalImportedSubject[]
+  portalAttendance        PortalImportedAttendance[]
+  portalLectures          PortalImportedLecture[]
+  portalTimetables        PortalImportedTimetable[]
+  portalSyncHistory       PortalSyncHistory[]
+  portalCompanionDevices  PortalCompanionDevice[]
+  portalCompanionPairings PortalCompanionPairing[]
+  portalCompanionJobs     PortalCompanionJob[]
+  portalImports           PortalImport[]
 }
 
 // ───────────────────────────────────────────────────────────
@@ -440,6 +443,60 @@ model PortalSyncHistory {
 
   @@index([studentId, startedAt])
   @@index([studentId, status])
+}
+
+model PortalCompanionPairing {
+  id        String    @id @default(cuid())
+  studentId String
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  codeHash  String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([studentId, createdAt])
+  @@index([expiresAt])
+}
+
+model PortalCompanionDevice {
+  id         String               @id @default(cuid())
+  studentId  String
+  student    Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  secretHash String
+  name       String
+  status     String               @default("PENDING")
+  lastSeenAt DateTime?
+  pairedAt   DateTime             @default(now())
+  revokedAt  DateTime?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+  jobs       PortalCompanionJob[]
+
+  @@unique([studentId, secretHash])
+  @@index([studentId, status])
+  @@index([lastSeenAt])
+}
+
+model PortalCompanionJob {
+  id           String                @id @default(cuid())
+  studentId    String
+  student      Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  deviceId     String
+  device       PortalCompanionDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  type         String
+  status       String                @default("QUEUED")
+  payload      Json?
+  result       Json?
+  errorCode    String?
+  errorMessage String?
+  queuedAt     DateTime              @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+  expiresAt    DateTime
+
+  @@index([deviceId, status, queuedAt])
+  @@index([studentId, queuedAt])
+  @@index([expiresAt])
 }
 
 model PortalImportedSubject {

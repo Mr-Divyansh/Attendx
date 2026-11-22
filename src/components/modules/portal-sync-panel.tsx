@@ -54,6 +54,11 @@ type PortalStatusResponse = {
   }>
 }
 
+type CompanionStatus = {
+  devices: Array<{ id: string; name: string; status: string; lastSeenAt: string | null; pairedAt: string }>
+  jobs: Array<{ id: string; type: string; status: string; errorCode: string | null; errorMessage: string | null; queuedAt: string; startedAt: string | null; completedAt: string | null }>
+}
+
 export function PortalSyncPanel() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [records, setRecords] = useState<StoredImport[]>([])
@@ -62,6 +67,8 @@ export function PortalSyncPanel() {
   const [busy, setBusy] = useState(false)
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [portalStatus, setPortalStatus] = useState<PortalStatusResponse | null>(null)
+  const [companion, setCompanion] = useState<CompanionStatus | null>(null)
+  const [pairCode, setPairCode] = useState<{ code: string; expiresAt: string } | null>(null)
 
   const loadImport = useCallback(async () => {
     setLoading(true)
@@ -73,6 +80,11 @@ export function PortalSyncPanel() {
         setPortalStatus(await apiFetch<PortalStatusResponse>('/api/student/portal'))
       } catch {
         setPortalStatus(null)
+      }
+      try {
+        setCompanion(await apiFetch<CompanionStatus>('/api/student/portal/companion'))
+      } catch {
+        setCompanion(null)
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not load imported attendance.')
@@ -167,6 +179,13 @@ export function PortalSyncPanel() {
   async function connectPortal() {
     setBusy(true)
     try {
+      if (!portalStatus?.adapter.available) {
+        const result = await apiFetch<{ ok: boolean; code: string; expiresAt: string }>('/api/student/portal/companion', { method: 'POST' })
+        setPairCode({ code: result.code, expiresAt: result.expiresAt })
+        toast.success('Pairing code created. Run the local companion and enter this code.')
+        await loadImport()
+        return
+      }
       await apiFetch('/api/student/portal', { method: 'POST' })
       toast.info('Live sync is not configured. The CSV fallback remains available.')
       await loadImport()
@@ -180,6 +199,19 @@ export function PortalSyncPanel() {
   async function syncPortal() {
     setBusy(true)
     try {
+      if (!portalStatus?.adapter.available) {
+        if (!companion?.devices.length) {
+          toast.info('Pair the local companion before requesting attendance data.')
+          return
+        }
+        await apiFetch('/api/student/portal/companion/job', {
+          method: 'POST',
+          body: JSON.stringify({ type: 'SYNC' }),
+        })
+        toast.success('Sync job queued for the local companion.')
+        await loadImport()
+        return
+      }
       await apiFetch('/api/student/portal/sync', { method: 'POST' })
     } catch (error) {
       toast.info(error instanceof Error ? error.message : 'Live Scholars24 sync is unavailable.')
@@ -198,6 +230,62 @@ export function PortalSyncPanel() {
       await loadImport()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not disconnect Scholars24.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function openLocalLogin() {
+    if (!companion?.devices.length) {
+      toast.info('Pair the local companion first.')
+      return
+    }
+    setBusy(true)
+    try {
+      await apiFetch('/api/student/portal/companion/job', {
+        method: 'POST',
+        body: JSON.stringify({ type: 'OPEN_LOGIN' }),
+      })
+      toast.success('Browser login job sent to the local companion.')
+      await loadImport()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not start the local browser.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function clearLocalSession() {
+    if (!companion?.devices.length) {
+      toast.info('No local companion session is paired.')
+      return
+    }
+    if (!window.confirm('Clear the dedicated local Scholars24 browser profile on this device?')) return
+    setBusy(true)
+    try {
+      await apiFetch('/api/student/portal/companion/job', {
+        method: 'POST',
+        body: JSON.stringify({ type: 'CLEAR_SESSION' }),
+      })
+      toast.success('Local browser session clear requested.')
+      await loadImport()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not clear the local session.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function disconnectCompanion() {
+    if (!window.confirm('Disconnect this AttendX account from its local Scholars24 companion?')) return
+    setBusy(true)
+    try {
+      await apiFetch('/api/student/portal/companion/disconnect', { method: 'POST' })
+      setPairCode(null)
+      toast.success('Local companion disconnected.')
+      await loadImport()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not disconnect the companion.')
     } finally {
       setBusy(false)
     }
@@ -294,7 +382,11 @@ export function PortalSyncPanel() {
                       ? 'Authorized API ready'
                       : portalStatus?.connection.status === 'DISCONNECTED'
                         ? 'Disconnected'
-                        : 'Live synchronization unavailable'}
+                        : portalStatus?.connection.status === 'LOGIN_PENDING'
+                          ? 'Login required in local browser'
+                          : portalStatus?.connection.status === 'LOGIN_REQUIRED'
+                            ? 'Local browser session expired'
+                            : 'Live synchronization unavailable'}
                 </p>
                 <Badge variant={portalStatus?.adapter.available ? 'default' : 'secondary'} className="text-[11px]">
                   {portalStatus?.adapter.available ? 'Configured' : 'Authorization required'}
@@ -309,18 +401,60 @@ export function PortalSyncPanel() {
             {portalStatus?.adapter.available ? (
               <Button variant="outline" onClick={connectPortal} disabled={busy || loading}><Cable className="mr-2 size-4" />Connect Scholars24</Button>
             ) : (
-              <Button variant="outline" asChild><a href={PORTAL_URL} target="_blank" rel="noreferrer"><Cable className="mr-2 size-4" />Connect Scholars24</a></Button>
+              <Button variant="outline" onClick={connectPortal} disabled={busy || loading}><Cable className="mr-2 size-4" />{companion?.devices.length ? 'Pair Another Device' : 'Connect Scholars24'}</Button>
             )}
-            <Button onClick={syncPortal} disabled={busy || loading || !portalStatus?.adapter.available}>
+            {!portalStatus?.adapter.available && companion?.devices.length ? (
+              <Button variant="outline" onClick={openLocalLogin} disabled={busy || loading}><Cable className="mr-2 size-4" />Start Local Browser</Button>
+            ) : null}
+            <Button onClick={syncPortal} disabled={busy || loading || (!portalStatus?.adapter.available && !companion?.devices.length)}>
               {busy ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}
               {busy ? 'Checking…' : 'Get Attendance Data'}
             </Button>
+            {!portalStatus?.adapter.available && companion?.devices.length ? (
+              <>
+                <Button variant="ghost" onClick={clearLocalSession} disabled={busy}>Clear Local Session</Button>
+                <Button variant="ghost" onClick={disconnectCompanion} disabled={busy}><Unplug className="mr-2 size-4" />Disconnect Device</Button>
+              </>
+            ) : null}
             {(portalStatus?.connection.status === 'READY' || portalStatus?.connection.status === 'DISCONNECTED') && (
               <Button variant="ghost" onClick={disconnectPortal} disabled={busy}><Unplug className="mr-2 size-4" />Disconnect</Button>
             )}
           </div>
         </CardContent>
       </Card>
+
+      {(pairCode || companion?.devices.length) && (
+        <Card className="border-primary/15">
+          <CardHeader className="border-b bg-muted/20">
+            <CardTitle className="text-base">Local Companion</CardTitle>
+            <CardDescription>Windows companion pairing and browser-session state.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 p-5">
+            {pairCode && (
+              <div className="flex flex-col gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Pairing code</p>
+                  <p className="mt-1 text-3xl font-semibold tracking-[0.18em] tabular-nums">{pairCode.code}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Expires {new Date(pairCode.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                </div>
+                <p className="max-w-sm text-sm text-muted-foreground">Run <code className="rounded bg-background px-1.5 py-0.5 text-xs">npm run companion:pair</code>, enter this code, then run <code className="rounded bg-background px-1.5 py-0.5 text-xs">npm run companion:start</code>.</p>
+              </div>
+            )}
+            {companion?.devices.map((device) => (
+              <div key={device.id} className="flex flex-col gap-2 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-medium">{device.name}</p>
+                  <p className="text-xs text-muted-foreground">Paired {new Date(device.pairedAt).toLocaleString()}</p>
+                </div>
+                <div className="text-left sm:text-right">
+                  <Badge variant={device.status === 'CONNECTED' ? 'default' : 'secondary'}>{device.status}</Badge>
+                  <p className="mt-1 text-xs text-muted-foreground">{device.lastSeenAt ? `Last seen ${new Date(device.lastSeenAt).toLocaleString()}` : 'Never contacted AttendX'}</p>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="border-b bg-muted/20">
