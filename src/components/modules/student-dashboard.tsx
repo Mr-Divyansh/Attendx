@@ -218,6 +218,10 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
   const [weeklyReport, setWeeklyReport] = useState<WeeklyResp | null>(null)
   const [monthly, setMonthly] = useState<MonthRow[]>([])
   const [monthlyReport, setMonthlyReport] = useState<MonthlyResp | null>(null)
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date()
+    return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0')
+  })
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>([])
   const [joinCode, setJoinCode] = useState('')
   const [joining, setJoining] = useState(false)
@@ -279,7 +283,7 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
         setWeeklyReport(w)
         setWeekly(w.week ?? [])
       } else if (active === 'monthly') {
-        const m = await apiFetch<MonthlyResp>('/api/student/monthly')
+        const m = await apiFetch<MonthlyResp>('/api/student/monthly?month=' + encodeURIComponent(selectedMonth))
         setMonthlyReport(m)
         setMonthly(m.months ?? [])
       }
@@ -288,7 +292,7 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
     } finally {
       setLoading(false)
     }
-  }, [active])
+  }, [active, selectedMonth])
 
   useEffect(() => {
     load()
@@ -764,12 +768,28 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
           <section id="section-monthly">
             <Card className="h-full">
               <CardHeader>
-                <CardTitle>Monthly Trend</CardTitle>
-                <CardDescription>
-                  Attendance percentage across the last six calendar months. Each point is one complete month, while Weekly focuses on individual days.
-                </CardDescription>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <CardTitle>Monthly Report</CardTitle>
+                    <CardDescription>Six calendar months of history and a subject breakdown for the selected month.</CardDescription>
+                  </div>
+                  <Input aria-label="Select report month" type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} className="w-full sm:w-44" />
+                </div>
               </CardHeader>
               <CardContent>
+                {monthlyReport?.summary && (
+                  <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <StatCard label="Selected month" value={monthlyReport.summary.pct === null ? '—' : monthlyReport.summary.pct + '%'} icon={GraduationCap} tone="primary" />
+                    <StatCard label="Total classes" value={monthlyReport.summary.total} icon={CalendarDays} tone="chart-2" />
+                    <StatCard label="Present + Late" value={monthlyReport.summary.attended} icon={CheckCircle2} tone="chart-5" />
+                    <StatCard label="Absent" value={monthlyReport.summary.absent} icon={TriangleAlert} tone="chart-4" />
+                    <p className="text-sm text-muted-foreground sm:col-span-2 xl:col-span-4">
+                      {monthlyReport.comparison?.percentagePointChange == null
+                        ? 'Not enough data to compare with the previous month.'
+                        : Math.abs(monthlyReport.comparison.percentagePointChange) + ' percentage points ' + (monthlyReport.comparison.percentagePointChange >= 0 ? 'higher' : 'lower') + ' than the previous month.'}
+                    </p>
+                  </div>
+                )}
                 {loading ? (
                   <Skeleton className="h-64 w-full rounded-lg" />
                 ) : (monthly.length === 0 || monthly.every((row) => row.total === 0)) ? (
@@ -843,6 +863,17 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
                         />
                       </LineChart>
                     </ResponsiveContainer>
+                  </div>
+                )}
+                {monthlyReport?.subjects && monthlyReport.subjects.length > 0 && (
+                  <div className="mt-5 space-y-3">
+                    <h3 className="font-semibold">Subject-wise monthly breakdown</h3>
+                    {monthlyReport.subjects.map((subject) => (
+                      <div key={subject.subjectId} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                        <div className="min-w-0"><p className="truncate font-medium">{subject.name}</p><p className="text-xs text-muted-foreground">{subject.attended} attended · {subject.absent} absent · {subject.late} late</p></div>
+                        <Badge variant="outline">{subject.pct === null ? '—' : subject.pct + '%'}</Badge>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
