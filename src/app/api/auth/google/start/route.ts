@@ -3,6 +3,8 @@ import { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import {
   getGoogleOAuthConfig,
+  getOAuthEnvironment,
+  logGoogleOAuthDiagnostic,
   OAuthConfigurationError,
   signOAuthState,
   OAUTH_STATE_COOKIE,
@@ -22,6 +24,7 @@ export async function GET(req: NextRequest) {
 
     const nonce = crypto.randomUUID()
     const config = getGoogleOAuthConfig(req)
+    logGoogleOAuthDiagnostic('initiation', config.callbackUrl)
     const state = signOAuthState({ role, nonce })
 
     const store = await cookies()
@@ -49,7 +52,11 @@ export async function GET(req: NextRequest) {
 
   } catch (e) {
     if (e instanceof OAuthConfigurationError) {
-      console.error('[auth/google/start] configuration error', { code: e.code })
+      console.error('[auth/google/start] configuration error', {
+        stage: 'initiation_configuration',
+        environment: getOAuthEnvironment(),
+        category: e.code,
+      })
       return errorResponse('Google sign-in is temporarily unavailable. Please contact the administrator.', 503)
     }
     return handleRouteError(e, 'auth/google/start')

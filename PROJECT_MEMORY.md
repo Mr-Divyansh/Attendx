@@ -44,7 +44,7 @@ AttendX is an attendance-management application for schools, colleges, and unive
 * Recharts (analytics)
 * Zustand (client state — auth store)
 * React Hook Form + Zod
-* next-auth (Google OAuth), Nodemailer (SMTP OTP)
+* Custom Google OAuth routes, Nodemailer (SMTP OTP)
 * Upstash Redis (rate limiting, optional; PostgreSQL fallback)
 * dnd-kit (drag-and-drop), framer-motion, sonner (toasts), next-themes
 
@@ -85,7 +85,7 @@ Key details: `User.role` enum (`ADMIN | TEACHER | STUDENT`), session role also s
 
 * **PostgreSQL over SQLite** (migrated from SQLite): SQLite's file-based storage breaks on serverless platforms (Netlify/Vercel serverless functions get throwaway filesystems). Postgres is required for production.
 * **No standalone Next output**: `standalone` was removed from `next.config.ts`; Netlify/Vercel official build pipeline is used instead.
-* **Session-based custom auth** instead of relying solely on next-auth for the primary flow; next-auth only used for Google OAuth.
+* **Session-based custom auth** instead of relying solely on next-auth for the primary flow. Google OAuth uses custom App Router start/callback routes; the installed `next-auth` package is not used by these routes. OAuth state is HMAC-signed and bound to an HTTP-only, same-site cookie.
 * **Dynamic import in instrumentation**: `src/instrumentation.ts` must NOT statically import `auth.ts` (which pulls Node `crypto` into the Edge bundle and causes build warnings). It uses `process.env.NEXT_RUNTIME === 'nodejs'` guard + dynamic import instead.
 * **Strict password policy**: 12+ chars with upper/lower/digit/special, denylist, no email/name substrings.
 * **Reset links**: tokens are URL fragments, removed from browser history after capture, and submitted only in a POST body; production links require `ATTENDX_APP_URL` or the trusted `NEXT_PUBLIC_APP_URL` fallback.
@@ -101,7 +101,7 @@ Key details: `User.role` enum (`ADMIN | TEACHER | STUDENT`), session role also s
 
 ### Known Issues
 
-* (None currently tracked.)
+* Google recognizes the Production callback URI, but rejects the currently deployed Preview callback as `redirect_uri_mismatch`. Add the exact active Preview callback URI to the same Google OAuth client in Google Cloud Console; Preview deployment URLs may change between deployments. Actual Google-account sign-in remains unverified.
 
 ### Important Commands
 
@@ -132,6 +132,13 @@ npm run lint               # eslint
 * Added reset request/completion APIs with CSRF checks, account/IP rate limits, generic responses, password policy validation, session revocation, and password-change notifications.
 * Added student Account Security navigation/panel, reset request and reset completion screens, reusable accessible password visibility controls, and shared pressed-state feedback.
 * SMTP delivery and sender-domain verification remain deployment configuration and require manual validation.
+
+#### 2026-11-23 — Preview Google OAuth redirect diagnostics
+
+* Preview OAuth callbacks use the validated request origin; Production continues using its explicit callback and app URLs.
+* Added safe stage/environment/host/path diagnostics and sanitized callback/state error categories; no OAuth secrets, codes, tokens, cookies, or query strings are logged.
+* Google rejects the active Preview callback with `redirect_uri_mismatch`; the exact active URI must be added to the Authorized redirect URIs for the configured OAuth client.
+* Vercel Deployment Protection is enabled for Preview and browser access requires SSO. Callback behavior under an authenticated SSO session and real Preview sign-in remain unverified.
 
 #### 2026-08-18
 
