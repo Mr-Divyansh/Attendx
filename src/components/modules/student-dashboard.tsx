@@ -131,8 +131,9 @@ type MonthRow = {
   late?: number
   absent?: number
   key?: string
+  atRisk?: boolean
 }
-type MonthlyResp = { months: MonthRow[]; summary?: ReportSummary; subjects?: ReportSubject[]; comparison?: { percentagePointChange: number | null } }
+type MonthlyResp = { months: MonthRow[]; summary?: ReportSummary; subjects?: (ReportSubject & { atRisk?: boolean })[]; comparison?: { percentagePointChange: number | null }; minimumAttendancePercentage?: number }
 
 type ClassroomRow = {
   id: string
@@ -759,7 +760,7 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
                 {weeklyReport.subjects.map((subject) => (
                   <div key={subject.subjectId} className="flex items-center justify-between gap-3 rounded-lg border p-3">
                     <div className="min-w-0"><p className="truncate font-medium">{subject.name}</p><p className="text-xs text-muted-foreground">{subject.attended} attended · {subject.absent} absent · {subject.late} late</p></div>
-                    <Badge variant="outline">{subject.pct === null ? '—' : subject.pct + '%'}</Badge>
+                    <div className="flex items-center gap-2"><Badge variant="outline">{subject.pct === null ? '—' : subject.pct + '%'}</Badge>{subject.atRisk && <Badge variant="destructive">At risk</Badge>}</div>
                   </div>
                 ))}
               </CardContent>
