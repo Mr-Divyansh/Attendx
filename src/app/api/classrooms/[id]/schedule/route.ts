@@ -4,6 +4,8 @@ import { requireRole, parseBody, json, errorResponse, AuthError, handleRouteErro
 
 export const runtime = 'nodejs'
 
+type ClassroomRouteContext = { params: Promise<{ id: string }> }
+
 const DAYS = new Set(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
 const DAY_ALIASES: Record<string, string> = { Monday: 'Mon', Tuesday: 'Tue', Wednesday: 'Wed', Thursday: 'Thu', Friday: 'Fri', Saturday: 'Sat', Sunday: 'Sun' }
 
@@ -16,7 +18,7 @@ function normaliseTime(value?: string) {
   return { value: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`, minutes: hours * 60 + minutes }
 }
 
-export async function POST(req: NextRequest, context: RouteContext<'/api/classrooms/[id]/schedule'>) {
+export async function POST(req: NextRequest, context: ClassroomRouteContext) {
   try {
     const session = await requireRole('TEACHER')
     await assertCsrf(req)
@@ -33,7 +35,7 @@ export async function POST(req: NextRequest, context: RouteContext<'/api/classro
   } catch (e) { return handleRouteError(e, 'classrooms/schedule') }
 }
 
-export async function DELETE(req: NextRequest, context: RouteContext<'/api/classrooms/[id]/schedule'>) {
+export async function DELETE(req: NextRequest, context: ClassroomRouteContext) {
   try {
     const session = await requireRole('TEACHER')
     await assertCsrf(req)
