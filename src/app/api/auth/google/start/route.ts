@@ -44,6 +44,8 @@ export async function GET(req: NextRequest) {
     logGoogleOAuthDiagnostic('initiation', config.callbackUrl, undefined, {
       requestHost: req.nextUrl.host,
       stateCookieHost: req.nextUrl.host,
+      stateCookieHostMatchesCallbackHost:
+        req.nextUrl.host === new URL(config.callbackUrl).host,
     })
 
     const params = new URLSearchParams({

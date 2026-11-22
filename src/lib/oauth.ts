@@ -67,6 +67,8 @@ type OAuthDiagnosticDetails = {
   statePresent?: boolean
   requestHost?: string
   stateCookieHost?: string
+  stateCookieHostMatchesCallbackHost?: boolean
+  requestHostMatchesCallbackHost?: boolean
   stateCookiePresent?: boolean
   stateMatchesQuery?: boolean
   providerErrorCategory?: GoogleProviderErrorCategory | 'none'

@@ -246,6 +246,7 @@ test('callback diagnostics report presence and validation only, never cookie val
       'missing_state',
       {
         requestHost: 'attendx.example',
+        requestHostMatchesCallbackHost: true,
         codePresent: false,
         statePresent: false,
         stateCookiePresent: true,
@@ -256,6 +257,7 @@ test('callback diagnostics report presence and validation only, never cookie val
     )
 
     assert.equal(context.requestHost, 'attendx.example')
+    assert.equal(context.requestHostMatchesCallbackHost, true)
     assert.equal(context.codePresent, false)
     assert.equal(context.statePresent, false)
     assert.equal(context.stateCookiePresent, true)
