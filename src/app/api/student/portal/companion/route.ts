@@ -35,6 +35,7 @@ export async function GET() {
           status: true,
           errorCode: true,
           errorMessage: true,
+          result: true,
           queuedAt: true,
           startedAt: true,
           completedAt: true,

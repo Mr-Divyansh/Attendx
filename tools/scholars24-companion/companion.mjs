@@ -118,7 +118,7 @@ async function extractVisibleAttendance(context) {
 
   const passwordVisible = await page.locator('input[type="password"]').count()
   if (passwordVisible > 0) return { status: 'LOGIN_REQUIRED' }
-  const url = page.url().toLower()
+  const url = page.url().toLowerCase()
   if (/(login|signin|sign-in)/.test(url)) return { status: 'LOGIN_REQUIRED' }
 
   const tables = await page.locator('table').evaluateAll((elements) =>
@@ -132,7 +132,7 @@ async function extractVisibleAttendance(context) {
 
   for (const table of tables) {
     if (!table.headers.length) continue
-    const normalizedHeaders = table.headers.map((header) => header.toLower().replace(/[^a-z0-9]/g, ''))
+    const normalizedHeaders = table.headers.map((header) => header.toLowerCase().replace(/[^a-z0-9]/g, ''))
     const subjectIndex = normalizedHeaders.findIndex((header) => ['subject','subjectname','course','coursename','paper'].includes(header))
     const dateIndex = normalizedHeaders.findIndex((header) => ['date','classdate','attendancedate','markedon'].includes(header))
     const statusIndex = normalizedHeaders.findIndex((header) => ['status','attendance','attendancestatus','presentabsent'].includes(header))
@@ -148,7 +148,7 @@ async function extractVisibleAttendance(context) {
         subject,
         date,
         status,
-        externalKey: `visible:${date}:${subject.toLocaleLower().replace(/\s+/g, ' ')}`,
+        externalKey: `visible:${date}:${subject.toLocaleLowerCase().replace(/\s+/g, ' ')}`,
       })
     }
     if (records.length) return { status: 'SUCCESS', records }
