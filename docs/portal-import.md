@@ -1,6 +1,6 @@
 # Scholars24 portal import
 
-AttendX currently supports a account-backed CSV import for a student's own attendance export.
+AttendX currently supports an account-backed CSV import for a student's own attendance export.
 
 ## Current behaviour
 
@@ -14,7 +14,7 @@ AttendX currently supports a account-backed CSV import for a student's own atten
 - The import preview shows sample rows and asks for confirmation before replacing the current account-backed import.
 - Status values accepted: Present/P, Absent/A, and Late/L.
 - Imported records remain separate from teacher-marked AttendX records.
-- Data is stored in browser the AttendX database for the signed-in student on that device. It is not uploaded to the AttendX server and is not automatically shared across devices.
+- Data is stored in the AttendX database for the signed-in student on that device. It is stored on the AttendX server and is available across devices.
 - Use **Export JSON** to keep a backup of imported records.
 
 ## Automatic integration
