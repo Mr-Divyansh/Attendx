@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(body.records) || body.records.length < 1 || body.records.length > 3000) {
       return errorResponse('Import must contain between 1 and 3,000 attendance rows.', 400)
     }
+    const inputCount = body.records.length
 
     const seen = new Set<string>()
     const rows: ImportedRow[] = []
@@ -97,11 +98,27 @@ export async function POST(req: NextRequest) {
     if (rows.length === 0) return errorResponse('No unique attendance rows were found.', 400)
 
     const result = await db.$transaction(async (tx) => {
-      const previous = await tx.portalImport.findMany({ where: { studentId: session.studentId! }, select: { id: true } })
-      if (previous.length) {
-        await tx.portalImport.deleteMany({ where: { studentId: session.studentId! } })
-      }
-      return tx.portalImport.create({
+      await tx.portalImport.deleteMany({ where: { studentId: session.studentId! } })
+      await tx.portalImportedAttendance.deleteMany({
+        where: { studentId: session.studentId!, source: 'CSV' },
+      })
+
+      const connection = await tx.portalConnection.upsert({
+        where: { studentId: session.studentId! },
+        create: {
+          studentId: session.studentId!,
+          provider: 'SCHOLARS24',
+          status: 'CSV_ACTIVE',
+          lastSuccessfulSyncAt: new Date(),
+        },
+        update: {
+          status: 'CSV_ACTIVE',
+          lastSuccessfulSyncAt: new Date(),
+          errorCode: null,
+          errorMessage: null,
+        },
+      })
+      const portalImport = await tx.portalImport.create({
         data: {
           studentId: session.studentId!,
           source: (typeof body.source === 'string' ? body.source.trim().slice(0, 40) : '') || 'CSV',
@@ -109,6 +126,34 @@ export async function POST(req: NextRequest) {
         },
         include: { _count: { select: { records: true } } },
       })
+
+      await tx.portalImportedAttendance.createMany({
+        data: rows.map((row) => ({
+          studentId: session.studentId!,
+          externalKey: `csv:${row.date}:${row.subject.toLocaleLowerCase()}:${row.status}`,
+          provider: 'SCHOLARS24',
+          subjectName: row.subject,
+          attendanceDate: row.date,
+          status: row.status,
+          source: 'CSV',
+        })),
+        skipDuplicates: true,
+      })
+      await tx.portalSyncHistory.create({
+        data: {
+          studentId: session.studentId!,
+          connectionId: connection.id,
+          provider: 'SCHOLARS24',
+          syncType: 'ATTENDANCE_CSV',
+          status: 'SUCCESS',
+          source: 'CSV',
+          completedAt: new Date(),
+          importedCount: rows.length,
+          skippedCount: inputCount - rows.length,
+          details: { source: 'CSV' },
+        },
+      })
+      return portalImport
     })
 
     return json({
