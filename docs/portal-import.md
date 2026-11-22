@@ -4,7 +4,7 @@ AttendX currently supports a browser-local CSV import for a student's own attend
 
 ## Current behaviour
 
-- Open the college's Scholars24 attendance page and export/download a CSV report if the portal offers that option.
+- Open the [Scholars24 Student View](https://portal-hd.scholars24.in/Student/Student/StudentView), sign in on the official portal yourself, and export/download an attendance report if the portal offers that option.
 - In AttendX Student Dashboard, open **Portal Sync** and choose the CSV file.
 - The CSV must have columns that can be identified as **Subject**, **Date**, and **Status**.
 - Dates in ISO format (YYYY-MM-DD) and Indian format (DD-MM-YYYY or DD/MM/YYYY) are accepted.
