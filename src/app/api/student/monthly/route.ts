@@ -80,11 +80,14 @@ export async function GET(request: NextRequest) {
       existing.records.push(record)
       subjectMap.set(record.subjectId, existing)
     }
-    const subjects = Array.from(subjectMap.values()).map(({ records: subjectRecords, ...subject }) => ({
-      ...subject,
-      ...summarize(subjectRecords),
-      atRisk: subjectRecords.length > 0 && summarize(subjectRecords).pct !== null && (summarize(subjectRecords).pct as number) < threshold,
-    })).sort((a, b) => a.name.localeCompare(b.name))
+    const subjects = Array.from(subjectMap.values()).map(({ records: subjectRecords, ...subject }) => {
+      const summary = summarize(subjectRecords)
+      return {
+        ...subject,
+        ...summary,
+        atRisk: summary.pct !== null && summary.pct < threshold,
+      }
+    }).sort((a, b) => a.name.localeCompare(b.name))
 
     const selectedIndex = months.length - 1
     const currentSummary = months[selectedIndex]
