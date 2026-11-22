@@ -59,6 +59,17 @@ DATABASE_URL="postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require"
 ATTENDX_SECRET="$(openssl rand -hex 32)"
 ```
 
+## Secure Master Admin bootstrap
+
+Create the owner account normally, then configure these server-only environment variables and restart the application:
+
+```env
+ATTENDX_SUPER_ADMIN_EMAIL="owner@example.com"
+ATTENDX_SUPER_ADMIN_BOOTSTRAP_SECRET="<random-secret-at-least-32-characters>"
+```
+
+At startup AttendX promotes only the account matching `ATTENDX_SUPER_ADMIN_EMAIL` to `SUPER_ADMIN`. It does not create passwords or public default accounts. Remove or rotate the bootstrap secret after the promotion. The bootstrap is idempotent and must not be placed in frontend code or Git.
+
 **Required for OTP emails:**
 ```env
 SMTP_USER="your-email@gmail.com"

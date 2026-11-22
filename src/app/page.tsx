@@ -63,7 +63,7 @@ function HomeContent() {
   }, [searchParams, openLogin, router])
 
   useEffect(() => {
-    if (user?.role === 'ADMIN') {
+    if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') {
       router.replace('/admin-panel')
     }
   }, [user, router])

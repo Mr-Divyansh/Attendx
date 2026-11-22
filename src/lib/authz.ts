@@ -1,6 +1,10 @@
 import { db } from './db'
 import { AuthError, requireRole, type SessionUser } from './auth'
 
+export async function requireSuperAdmin(): Promise<SessionUser> {
+  return requireRole('SUPER_ADMIN')
+}
+
 // ───────────────────────────────────────────────────────────
 // AttendX — authorization helpers
 //
@@ -11,7 +15,8 @@ import { AuthError, requireRole, type SessionUser } from './auth'
 
 /** Require an ADMIN session (role + admin profile row). */
 export async function requireAdmin(): Promise<SessionUser> {
-  const session = await requireRole('ADMIN')
+  const session = await requireRole('SUPER_ADMIN', 'ADMIN')
+  if (session.role === 'SUPER_ADMIN') return session
   const admin = await db.admin.findUnique({ where: { userId: session.id } })
   if (!admin) {
     throw new AuthError('Forbidden', 403)

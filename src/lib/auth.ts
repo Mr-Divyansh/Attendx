@@ -15,7 +15,7 @@ const MIN_SECRET_LENGTH = 32
 export type SessionUser = {
   id: string
   email: string
-  role: 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PERSONAL'
+  role: 'SUPER_ADMIN' | 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PERSONAL'
   name: string
   // college extras
   studentId?: string

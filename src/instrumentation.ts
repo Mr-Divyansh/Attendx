@@ -32,4 +32,39 @@ export async function register() {
     }
     throw error
   }
+
+  const superAdminEmail = process.env.ATTENDX_SUPER_ADMIN_EMAIL?.trim().toLowerCase()
+  const bootstrapSecret = process.env.ATTENDX_SUPER_ADMIN_BOOTSTRAP_SECRET?.trim()
+  if (superAdminEmail && bootstrapSecret) {
+    if (bootstrapSecret.length < 32) {
+      throw new Error('ATTENDX_SUPER_ADMIN_BOOTSTRAP_SECRET must be at least 32 characters.')
+    }
+    try {
+      const { db } = await import('./lib/db')
+      const { logAudit } = await import('./lib/audit')
+      const user = await db.user.findUnique({ where: { email: superAdminEmail } })
+      if (!user) {
+        console.warn(
+          '[bootstrap] SUPER_ADMIN email is configured but no matching account exists. No account was created.'
+        )
+      } else if (user.role !== 'SUPER_ADMIN') {
+        await db.user.update({
+          where: { id: user.id },
+          data: { role: 'SUPER_ADMIN', disabled: false },
+        })
+        await logAudit({
+          action: 'super_admin.bootstrap',
+          actorId: user.id,
+          actorRole: 'SUPER_ADMIN',
+          targetType: 'User',
+          targetId: user.id,
+          details: { method: 'deployment_environment' },
+        })
+        console.info('[bootstrap] Configured account promoted to SUPER_ADMIN.')
+      }
+    } catch (error) {
+      console.error('[bootstrap] SUPER_ADMIN bootstrap check failed:', error)
+      throw error
+    }
+  }
 }

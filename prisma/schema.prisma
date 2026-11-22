@@ -27,14 +27,15 @@ datasource db {
 // ───────────────────────────────────────────────────────────
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
+  id            String    @id @default(cuid())
+  email         String    @unique
   passwordHash  String?
-  role          Role     @default(STUDENT)
-  disabled      Boolean  @default(false)
-  emailVerified Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  role          Role      @default(STUDENT)
+  disabled      Boolean   @default(false)
+  lastLoginAt   DateTime?
+  emailVerified Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   admin                Admin?
   teacher              Teacher?
@@ -44,6 +45,7 @@ model User {
 }
 
 enum Role {
+  SUPER_ADMIN
   ADMIN
   TEACHER
   STUDENT
