@@ -742,6 +742,16 @@ export function StudentDashboard({ page = 'overview' }: { page?: string }) {
           </section>
           )}
 
+          {active === 'weekly' && weekly.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Daily attendance table</CardTitle><CardDescription>Monday through Sunday, including days without recorded attendance.</CardDescription></CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Day</TableHead><TableHead>Date</TableHead><TableHead>Present</TableHead><TableHead>Late</TableHead><TableHead>Absent</TableHead><TableHead>Total</TableHead><TableHead>Attendance</TableHead></TableRow></TableHeader>
+                  <TableBody>{weekly.map((row) => <TableRow key={row.date}><TableCell>{row.day}</TableCell><TableCell>{row.date}</TableCell><TableCell>{(row as WeekRow & { present?: number }).present ?? row.attended}</TableCell><TableCell>{(row as WeekRow & { late?: number }).late ?? '—'}</TableCell><TableCell>{row.missed}</TableCell><TableCell>{row.total}</TableCell><TableCell>{row.total ? row.pct + '%' : '—'}</TableCell></TableRow>)}</TableBody>
+                </Table></div>
+              </CardContent>
+            </Card>
+          )}
           {active === 'weekly' && weeklyReport?.subjects && weeklyReport.subjects.length > 0 && (
             <Card>
               <CardHeader><CardTitle>Subject-wise weekly breakdown</CardTitle><CardDescription>Attendance marked during the current Monday–Sunday week.</CardDescription></CardHeader>
