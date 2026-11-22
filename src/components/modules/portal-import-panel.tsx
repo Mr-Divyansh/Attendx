@@ -178,6 +178,7 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
   const [loadedKey, setLoadedKey] = useState<string | null>(null)
   const [isImporting, setIsImporting] = useState(false)
   const [lastImport, setLastImport] = useState<{ count: number; skipped: number } | null>(null)
+  const [pendingImport, setPendingImport] = useState<{ records: ImportedRecord[]; skipped: number; fileName: string } | null>(null)
 
   useEffect(() => {
     try {
@@ -236,25 +237,32 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
     setIsImporting(true)
     try {
       const parsed = parseAttendanceCsv(await file.text(), file.name)
-      const merged = new Map<string, ImportedRecord>()
-      for (const record of records) {
-        merged.set(record.date + '|' + record.subject.toLowerCase(), record)
-      }
-      for (const record of parsed.records) {
-        merged.set(record.date + '|' + record.subject.toLowerCase(), record)
-      }
-      const nextRecords = [...merged.values()].sort(
+      const nextRecords = [...parsed.records].sort(
         (a, b) => b.date.localeCompare(a.date) || a.subject.localeCompare(b.subject),
       )
-      setRecords(nextRecords)
-      setLastImport({ count: parsed.records.length, skipped: parsed.skipped })
-      toast.success(parsed.records.length + ' attendance rows imported.')
+      setPendingImport({ records: nextRecords, skipped: parsed.skipped, fileName: file.name })
+      toast.success('CSV validated. Review the preview before replacing your imported records.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to import this CSV.')
     } finally {
       setIsImporting(false)
       event.target.value = ''
     }
+  }
+
+  function confirmImport() {
+    if (!pendingImport) return
+    const existingCount = records.length
+    const confirmed = window.confirm(
+      'Replace your existing ' + existingCount + ' portal-imported records with ' +
+      pendingImport.records.length + ' records from ' + pendingImport.fileName +
+      '? Teacher-marked AttendX classroom attendance will not be changed.',
+    )
+    if (!confirmed) return
+    setRecords(pendingImport.records)
+    setLastImport({ count: pendingImport.records.length, skipped: pendingImport.skipped })
+    setPendingImport(null)
+    toast.success(pendingImport.records.length + ' portal attendance rows replaced.')
   }
 
   function exportJson() {
@@ -342,6 +350,23 @@ export function PortalImportPanel({ storageKey }: { storageKey: string }) {
                 )}
               </div>
             </div>
+            {pendingImport && (
+              <div className="mt-4 space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
+                <div>
+                  <p className="font-medium">Import preview</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {pendingImport.records.length} valid rows · {pendingImport.skipped} skipped · {pendingImport.fileName}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    This will replace only the portal-imported records saved in this browser.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={confirmImport}>Confirm replacement</Button>
+                  <Button variant="outline" onClick={() => setPendingImport(null)}>Cancel</Button>
+                </div>
+              </div>
+            )}
             <div className="mt-4 flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
               <LockKeyhole className="mt-0.5 size-4 shrink-0" />
               <p>Your CSV is processed in this browser. It is not uploaded to AttendX servers and is saved only in this browser on this device.</p>
