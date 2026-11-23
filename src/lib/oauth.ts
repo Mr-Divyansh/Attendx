@@ -23,6 +23,7 @@ export type OAuthCallbackError =
   | 'access_denied'
   | 'redirect_uri_mismatch'
   | 'missing_code'
+  | 'missing_state'
   | 'invalid_state'
   | 'oauth_failed'
 
@@ -31,8 +32,27 @@ export type OAuthDiagnosticStage =
   | 'callback_received'
   | 'callback_validation'
   | 'token_exchange'
+  | 'token_exchange_response'
   | 'profile_verified'
   | 'callback_processing'
+
+export type GoogleProviderErrorCategory =
+  | 'access_denied'
+  | 'redirect_uri_mismatch'
+  | 'interaction_required'
+  | 'login_required'
+  | 'consent_required'
+  | 'temporarily_unavailable'
+  | 'server_error'
+  | 'other'
+
+export type OAuthStateValidation =
+  | 'not_checked'
+  | 'missing_state'
+  | 'missing_cookie'
+  | 'mismatch'
+  | 'invalid_signature'
+  | 'valid'
 
 export type OAuthDiagnosticCategory =
   | OAuthCallbackError
@@ -41,6 +61,39 @@ export type OAuthDiagnosticCategory =
   | 'GOOGLE_TOKEN_EXCHANGE_FAILED'
   | 'GOOGLE_PROFILE_VERIFICATION_FAILED'
   | 'OAUTH_CALLBACK_FAILED'
+
+type OAuthDiagnosticDetails = {
+  codePresent?: boolean
+  statePresent?: boolean
+  requestHost?: string
+  stateCookieHost?: string
+  stateCookieHostMatchesCallbackHost?: boolean
+  requestHostMatchesCallbackHost?: boolean
+  stateCookiePresent?: boolean
+  stateMatchesQuery?: boolean
+  providerErrorCategory?: GoogleProviderErrorCategory | 'none'
+  stateValidation?: OAuthStateValidation
+  tokenExchangeStatus?: number | null
+}
+
+export type GoogleTokenExchangeCategory =
+  | 'GOOGLE_CLIENT_CONFIGURATION_REJECTED'
+  | 'GOOGLE_AUTHORIZATION_CODE_REJECTED'
+  | 'GOOGLE_TOKEN_EXCHANGE_FAILED'
+
+export class GoogleTokenExchangeError extends Error {
+  readonly category: GoogleTokenExchangeCategory
+  readonly status: number | null
+
+  constructor(
+    category: GoogleTokenExchangeCategory,
+    status: number | null
+  ) {
+    super(category)
+    this.category = category
+    this.status = status
+  }
+}
 
 function trim(value: string | undefined): string | undefined {
   const result = value?.trim()
@@ -58,7 +111,8 @@ export function getOAuthEnvironment(): 'preview' | 'production' | 'development' 
 export function logGoogleOAuthDiagnostic(
   stage: OAuthDiagnosticStage,
   callbackUrl: string,
-  category?: OAuthDiagnosticCategory
+  category?: OAuthDiagnosticCategory,
+  details?: OAuthDiagnosticDetails
 ): void {
   const callback = parsePublicUrl(callbackUrl)
   const context = {
@@ -67,6 +121,7 @@ export function logGoogleOAuthDiagnostic(
     callbackHost: callback.host,
     callbackPath: callback.pathname,
     ...(category ? { category } : {}),
+    ...(details ?? {}),
   }
 
   if (category) console.warn('[auth/google]', context)
@@ -121,11 +176,15 @@ export function getGoogleOAuthConfig(req: NextRequest): OAuthConfig {
       throw new OAuthConfigurationError('invalid_callback_url')
     }
 
+    const previewOrigin = vercelBranchUrl
+      ? parsePublicUrl(`https://${vercelBranchUrl}`).origin
+      : requestOrigin
+
     return {
       clientId,
       clientSecret,
-      callbackUrl: `${requestOrigin}/api/auth/google/callback`,
-      appUrl: requestOrigin,
+      callbackUrl: `${previewOrigin}/api/auth/google/callback`,
+      appUrl: previewOrigin,
     }
   }
 
@@ -187,27 +246,55 @@ export function validateGoogleOAuthCallback(input: {
   cookieState: string | undefined
   providerError: string | null
 }):
-  | { ok: true; code: string; role: 'STUDENT' | 'TEACHER' }
-  | { ok: false; error: OAuthCallbackError } {
+  | { ok: true; code: string; role: 'STUDENT' | 'TEACHER'; stateValidation: 'valid' }
+  | { ok: false; error: OAuthCallbackError; stateValidation: OAuthStateValidation } {
   if (input.providerError) {
     if (input.providerError === 'access_denied') {
-      return { ok: false, error: 'access_denied' }
+      return { ok: false, error: 'access_denied', stateValidation: 'not_checked' }
     }
     if (input.providerError === 'redirect_uri_mismatch') {
-      return { ok: false, error: 'redirect_uri_mismatch' }
+      return { ok: false, error: 'redirect_uri_mismatch', stateValidation: 'not_checked' }
     }
-    return { ok: false, error: 'oauth_failed' }
+    return { ok: false, error: 'oauth_failed', stateValidation: 'not_checked' }
   }
 
-  if (!input.code || !input.state) return { ok: false, error: 'missing_code' }
-  if (!input.cookieState || input.cookieState !== input.state) {
-    return { ok: false, error: 'invalid_state' }
+  if (!input.state) {
+    return { ok: false, error: 'missing_state', stateValidation: 'missing_state' }
+  }
+  if (!input.cookieState) {
+    return { ok: false, error: 'invalid_state', stateValidation: 'missing_cookie' }
+  }
+  if (input.cookieState !== input.state) {
+    return { ok: false, error: 'invalid_state', stateValidation: 'mismatch' }
   }
 
   const state = verifyOAuthState(input.state)
-  if (!state) return { ok: false, error: 'invalid_state' }
+  if (!state) {
+    return { ok: false, error: 'invalid_state', stateValidation: 'invalid_signature' }
+  }
+  if (!input.code) {
+    return { ok: false, error: 'missing_code', stateValidation: 'valid' }
+  }
 
-  return { ok: true, code: input.code, role: state.role }
+  return { ok: true, code: input.code, role: state.role, stateValidation: 'valid' }
+}
+
+export function getGoogleProviderErrorCategory(
+  providerError: string | null
+): GoogleProviderErrorCategory | null {
+  if (!providerError) return null
+  switch (providerError) {
+    case 'access_denied':
+    case 'redirect_uri_mismatch':
+    case 'interaction_required':
+    case 'login_required':
+    case 'consent_required':
+    case 'temporarily_unavailable':
+    case 'server_error':
+      return providerError
+    default:
+      return 'other'
+  }
 }
 
 export { OAUTH_STATE_COOKIE }
@@ -220,31 +307,45 @@ export type GoogleProfile = {
 }
 
 export async function exchangeGoogleCode(code: string, config: OAuthConfig): Promise<GoogleProfile> {
-  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      code,
-      client_id: config.clientId,
-      client_secret: config.clientSecret,
-      redirect_uri: config.callbackUrl,
-      grant_type: 'authorization_code',
-    }),
-    cache: 'no-store',
-  })
+  let tokenRes: Response
+  try {
+    tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        redirect_uri: config.callbackUrl,
+        grant_type: 'authorization_code',
+      }),
+      cache: 'no-store',
+    })
+  } catch {
+    logGoogleOAuthDiagnostic('token_exchange_response', config.callbackUrl, 'GOOGLE_TOKEN_EXCHANGE_FAILED', {
+      tokenExchangeStatus: null,
+    })
+    throw new GoogleTokenExchangeError('GOOGLE_TOKEN_EXCHANGE_FAILED', null)
+  }
+
   const tokenData = await tokenRes.json().catch(() => null) as {
     access_token?: string
     error?: string
   } | null
   if (!tokenRes.ok || !tokenData?.access_token) {
-    if (tokenData?.error === 'invalid_client') {
-      throw new Error('GOOGLE_CLIENT_CONFIGURATION_REJECTED')
-    }
-    if (tokenData?.error === 'invalid_grant') {
-      throw new Error('GOOGLE_AUTHORIZATION_CODE_REJECTED')
-    }
-    throw new Error('GOOGLE_TOKEN_EXCHANGE_FAILED')
+    const category = tokenData?.error === 'invalid_client'
+      ? 'GOOGLE_CLIENT_CONFIGURATION_REJECTED'
+      : tokenData?.error === 'invalid_grant'
+        ? 'GOOGLE_AUTHORIZATION_CODE_REJECTED'
+        : 'GOOGLE_TOKEN_EXCHANGE_FAILED'
+    logGoogleOAuthDiagnostic('token_exchange_response', config.callbackUrl, category, {
+      tokenExchangeStatus: tokenRes.status,
+    })
+    throw new GoogleTokenExchangeError(category, tokenRes.status)
   }
+  logGoogleOAuthDiagnostic('token_exchange_response', config.callbackUrl, undefined, {
+    tokenExchangeStatus: tokenRes.status,
+  })
 
   const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
     headers: { Authorization: `Bearer ${tokenData.access_token}` },

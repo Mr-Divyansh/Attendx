@@ -24,7 +24,12 @@ export async function GET(req: NextRequest) {
 
     const nonce = crypto.randomUUID()
     const config = getGoogleOAuthConfig(req)
-    logGoogleOAuthDiagnostic('initiation', config.callbackUrl)
+    if (getOAuthEnvironment() === 'preview' && req.nextUrl.origin !== config.appUrl) {
+      const canonicalStartUrl = new URL('/api/auth/google/start', config.appUrl)
+      canonicalStartUrl.searchParams.set('role', role)
+      return Response.redirect(canonicalStartUrl, 307)
+    }
+
     const state = signOAuthState({ role, nonce })
 
     const store = await cookies()
@@ -34,6 +39,13 @@ export async function GET(req: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       path: '/',
       maxAge: 600,
+    })
+
+    logGoogleOAuthDiagnostic('initiation', config.callbackUrl, undefined, {
+      requestHost: req.nextUrl.host,
+      stateCookieHost: req.nextUrl.host,
+      stateCookieHostMatchesCallbackHost:
+        req.nextUrl.host === new URL(config.callbackUrl).host,
     })
 
     const params = new URLSearchParams({
