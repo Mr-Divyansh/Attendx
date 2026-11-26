@@ -3,6 +3,18 @@
 // AttendX — client-side auth + view state (Zustand)
 import { create } from 'zustand'
 
+const AUTH_REQUEST_TIMEOUT_MS = 20_000
+
+async function fetchAuthJson(url: string) {
+  const response = await fetch(url, {
+    cache: 'no-store',
+    signal: AbortSignal.timeout(AUTH_REQUEST_TIMEOUT_MS),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(`Authentication request failed (${response.status})`)
+  return data
+}
+
 export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PERSONAL'
 
 export type SessionUser = {
@@ -27,7 +39,7 @@ type AuthState = {
   loading: boolean
   csrfToken: string | null
   view: View
-  loginRole: Role | null // which login form to show
+  loginRole: Role | null
   forceProfileSetup: boolean
   setUser: (u: SessionUser | null) => void
   setLoading: (b: boolean) => void
@@ -83,6 +95,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     await fetch('/api/auth/logout', {
       method: 'POST',
       headers: csrf ? { 'x-csrf-token': csrf } : undefined,
+      signal: AbortSignal.timeout(AUTH_REQUEST_TIMEOUT_MS),
     })
     set({ user: null, view: 'landing', loginRole: null, csrfToken: null, forceProfileSetup: false })
   },
@@ -90,14 +103,12 @@ export const useAuth = create<AuthState>((set, get) => ({
   refresh: async () => {
     set({ loading: true })
     try {
-      const res = await fetch('/api/auth/me', { cache: 'no-store' })
-      const data = await res.json()
+      const data = await fetchAuthJson('/api/auth/me')
       get().setUser(data.user || null)
-      const cr = await fetch('/api/auth/csrf', { cache: 'no-store' })
-      const cd = await cr.json()
-      set({ csrfToken: cd.token ?? null })
+      const csrf = await fetchAuthJson('/api/auth/csrf')
+      set({ csrfToken: csrf.token ?? null })
     } catch {
-      set({ user: null })
+      set({ user: null, csrfToken: null })
     } finally {
       set({ loading: false })
     }
