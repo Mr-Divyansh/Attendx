@@ -101,8 +101,9 @@ Key details: `User.role` enum (`ADMIN | TEACHER | STUDENT`), session role also s
 
 ### Known Issues
 
-* Google recognizes the Production callback URI, but rejects the current Preview callback as `redirect_uri_mismatch`. Preview now uses the stable Vercel branch alias callback rather than a unique deployment hostname; that exact branch callback still needs to be added to the same Google OAuth client in Google Cloud Console. Actual Google-account sign-in remains unverified.
-* Recent Preview callback runtime records contained no `code`, no `state`, and no Google error parameter. Those records predate cookie-presence logging, so they cannot establish whether the host-only state cookie was sent. A live Google probe still rejects the stable branch callback before redirecting to AttendX.
+* The rotated Google OAuth client currently returns `redirect_uri_mismatch` for both the Production and stable feature-Preview callback URLs. The supplied client JSON also omits both required JavaScript origins. Add the exact callback URLs and origins to that client in Google Cloud Console before using it for sign-in.
+* Vercel Production and the feature-branch Preview environment variables were updated with the rotated credentials. The latest feature Preview is Ready; Production was not redeployed and its running deployment still uses its previously deployed environment.
+* Production OAuth reaches the callback with valid state/cookie, exchanges the code (HTTP 200), and verifies the profile, but then fails during account/session processing. The known Neon Production branch lacks `User.securityVersion` and `PersonalUser.securityVersion`, and its `_prisma_migrations` history lacks `20261123040000_account_security_reset_tokens`. This is the likely cause: the callback's Prisma user query selects the missing field. That additive migration passed on a temporary branch, which was deleted without applying it to Production. Production still needs explicit migration approval.
 
 ### Important Commands
 
@@ -142,6 +143,12 @@ npm run lint               # eslint
 * Vercel Deployment Protection is enabled for Preview and browser access requires SSO. Callback behavior under an authenticated SSO session and real Preview sign-in remain unverified.
 * Runtime logs confirmed a callback reached the Preview handler and was classified as `missing_code`, but the prior validator conflated absent `code` and absent `state`. Callback logs now record only parameter-presence booleans, a sanitized provider error category, and state validation status. Preview start requests canonicalize to the branch alias before setting the host-only state cookie.
 * Unauthenticated requests to the protected Preview start/callback paths redirect to Vercel SSO. A controlled callback probe confirmed the SSO return URL preserves `code` and `state`; Vercel protection remains enabled. Callback diagnostics now also record request/cookie host names and cookie presence/match booleans, never cookie contents.
+
+#### 2026-11-23 — Google OAuth credential rotation and Production failure triage
+
+* Replaced the local ignored credentials and configured the rotated credentials in the feature-branch Preview override and Vercel Production environment. Redeployed Preview only; no Production deployment was made.
+* The new OAuth client must be updated in Google Cloud Console with the Production and stable feature-Preview callbacks and JavaScript origins. Live Google checks currently reject both callback URLs.
+* Read-only inspection confirmed the Production schema is missing the security-version fields required by the deployed auth code. The additive password-security migration was verified on a temporary branch and that branch was removed; Production was not modified.
 
 #### 2026-08-18
 
